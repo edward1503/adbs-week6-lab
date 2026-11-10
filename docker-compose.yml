@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:17.6
+    container_name: week6-db
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: tickets
+    # Fixed planner settings so every student sees the same plans.
+    command: >
+      postgres
+      -c max_parallel_workers_per_gather=0
+      -c jit=off
+      -c random_page_cost=4
+      -c shared_buffers=128MB
+      -c work_mem=4MB
+    ports:
+      - "127.0.0.1:55432:5432"     # localhost only
+    volumes:
+      - ./data/01_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d tickets"]
+      interval: 3s
+      retries: 40
+
+  jupyter:
+    build: ./jupyter
+    container_name: week6-jupyter
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+    volumes:
+      - ./:/lab
+    ports:
+      - "127.0.0.1:8888:8888"      # localhost only; open http://localhost:8888
+    command: >
+      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+      --IdentityProvider.token= --ServerApp.root_dir=/lab
+      --LabApp.default_url=/lab/tree/notebooks/lab.ipynb

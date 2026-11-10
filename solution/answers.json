@@ -1,0 +1,32 @@
+{
+  "a1_npages_t": 1274,
+  "a1_npages_i": 191,
+  "a1_sel_star": 0.006364,
+  "a2_scan_30": "Index Scan",
+  "a2_buffers_30": 599,
+  "a2_scan_150": "Seq Scan",
+  "a2_scan_150_bitmap_on": "Bitmap Heap Scan",
+  "a3_matches": [true, true, false, false],
+
+  "b1_est": 20,
+  "b1_actual": 200,
+  "b1_violated_assumption": "independence of predicates",
+  "b2_est": 400,
+  "b2_actual": 4000,
+  "b3_price_gt_60_hand": 49273,
+  "b3_pg_est": 49053,
+
+  "c1_nl_buffers": 4429,
+  "c1_hj_buffers": 1337,
+  "c2_et_inl_est": 503,
+  "c2_et_inl_act": 4463,
+  "c2_et_hj": 1337,
+  "c2_bt_inl": 11051,
+  "c2_bt_hj": 1325,
+  "c2_pass3_choice_est": "E-INL-T-HJ-B",
+  "c2_pass3_cost_est": 554,
+  "c2_chosen_plan_actual_cost": 4514,
+  "c2_best_actual_cost": 1388,
+
+  "exit_threshold_events": 57
+}
