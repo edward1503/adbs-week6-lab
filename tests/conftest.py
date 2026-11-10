@@ -9,9 +9,27 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def normalize(value):
+    """20.0 -> 20, ' e-inl-t-hj-b ' -> 'E-INL-T-HJ-B', lists element-wise."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        s = value.strip()
+        try:                                   # "20" typed as a string
+            f = float(s)
+            return int(f) if f.is_integer() else f
+        except ValueError:
+            return s.upper()
+    if isinstance(value, list):
+        return [normalize(v) for v in value]
+    return value
+
+
 def h(value):
     """Hash an answer so the expected values are not readable in the repo."""
-    return hashlib.sha256(json.dumps(value).encode()).hexdigest()[:16]
+    return hashlib.sha256(json.dumps(normalize(value)).encode()).hexdigest()[:16]
 
 
 @pytest.fixture(scope="session")
@@ -54,4 +72,8 @@ def first_scan(plan):
 
 
 def close(student, truth, rel):
-    return student is not None and abs(student - truth) <= rel * abs(truth)
+    try:
+        student = float(student)
+    except (TypeError, ValueError):
+        return False
+    return abs(student - truth) <= rel * abs(truth)

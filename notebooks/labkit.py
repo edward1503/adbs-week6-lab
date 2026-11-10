@@ -32,9 +32,12 @@ WHERE e.city = 'Hanoi' AND e.genre = 'Jazz' AND b.segment = 'Campus'"""
 
 # ------------------------------------------------------------------ SQL
 def sql(query):
-    """Run a query and return a DataFrame."""
+    """Run a statement. Queries return a DataFrame; DDL/DML (CREATE, CLUSTER, ...) print the status."""
     with _conn.cursor() as cur:
         cur.execute(query)
+        if cur.description is None:          # no result set
+            print("OK:", cur.statusmessage)
+            return None
         cols = [c.name for c in cur.description]
         return pd.DataFrame(cur.fetchall(), columns=cols)
 
@@ -120,25 +123,51 @@ def save(**answers):
     """Store answers in answers.json (only the keys you pass)."""
     data = json.loads(ANSWERS.read_text(encoding="utf-8")) if ANSWERS.exists() else {}
     data.update(answers)
-    ANSWERS.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    # numpy / pandas scalars (e.g. from sql(...)) -> plain Python numbers
+    to_py = lambda o: o.item() if hasattr(o, "item") else str(o)
+    ANSWERS.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=to_py), encoding="utf-8")
     print("saved:", ", ".join(f"{k}={v!r}" for k, v in answers.items()))
+
+
+MARKERS = ("setup", "task_a", "task_b", "task_c", "exit")
 
 
 def check(marker=None):
     """Run the autograder for one part: check('task_a'), ..., or check() for all."""
-    cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "--tb=no", "-rf",
+    if marker is not None and marker not in MARKERS:
+        print(f"❌ unknown part {marker!r} — use one of {', '.join(MARKERS)} or check()")
+        return False
+    cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "--tb=no", "-rfE",
            "--color=no", "-p", "no:cacheprovider", "-W", "ignore"]
     if marker:
         cmd += ["-m", marker]
     env = {**os.environ, "ANSWERS": str(ANSWERS), "PYTHONIOENCODING": "utf-8", "COLUMNS": "400"}
-    out = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True,
-                         text=True, encoding="utf-8").stdout
-    for line in out.splitlines():
-        if line.startswith("FAILED"):
+    res = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True,
+                         text=True, encoding="utf-8")
+    summary = ""
+    for line in res.stdout.splitlines():
+        if line.startswith(("FAILED", "ERROR")):
+            kind = "✗" if line.startswith("FAILED") else "⚠ error in"
             test = line.split("::")[-1].split(" ")[0].removeprefix("test_")
-            hint = line.split("AssertionError:", 1)[-1].strip() if "AssertionError:" in line else ""
+            hint = line.split(" - ", 1)[-1].strip() if " - " in line else ""
+            hint = hint.removeprefix("AssertionError:").strip()
             hint = "" if hint.startswith("assert ") else hint
-            print(f"  ✗ {test}" + (f" — hint: {hint}" if hint else ""))
-        elif " passed" in line or " failed" in line:
+            print(f"  {kind} {test}" + (f" — hint: {hint}" if hint else ""))
+        elif line.split(" in ")[0].rstrip().endswith(("passed", "failed", "error", "errors",
+                                                      "deselected", "selected")):
             summary = line.split(" in ")[0].replace(", ", " · ")
-            print(("❌ " if "failed" in line else "✅ ") + summary)
+    # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests
+    if res.returncode == 0:
+        print("✅ " + summary)
+    elif res.returncode == 1:
+        print("❌ " + summary)
+        if "error" in summary:
+            print("   ⚠ errors are environment problems, not wrong answers — is the database up? "
+                  "Try `docker compose up -d`, then rerun.")
+    elif res.returncode == 5:
+        print("⚠ no tests collected" + (f" for {marker!r}" if marker else ""))
+    else:
+        print(f"⚠ autograder could not run (pytest exit code {res.returncode}) — "
+              "is the database up? Try `docker compose up -d`.")
+        print((res.stdout + res.stderr).strip()[-800:])
+    return res.returncode == 0

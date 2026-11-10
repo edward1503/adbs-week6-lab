@@ -38,12 +38,22 @@ Stop: `docker compose stop`.
 | `solution/answers.json` | Reference answers |
 | `tests/test_lab.py` | Autograder; fixed answers are stored as hashes |
 | `data/01_init.sql` | Deterministic dataset |
+| `tools/make_student_release.py` | Builds `dist/week6-lab-student.zip` from an allow-list and fails if any answer leaks |
+| `STUDENT_README.md` | README shipped to students (setup at home, troubleshooting) |
 
 ```bash
 uv run --no-project --with nbformat python tools/build_notebooks.py
 ```
 
-> Remove `solution/` before releasing the materials to students.
+### Releasing to students (48 h before the lab)
+
+Never share this repo directly — `solution/` **and** `tools/build_notebooks.py` contain the answers.
+
+```bash
+uv run --no-project --with nbformat python tools/make_student_release.py
+```
+
+Upload `dist/week6-lab-student.zip` (10 files: compose, Dockerfile, data, notebook, labkit, autograder, blank answers, student README).
 
 ## Dataset (deterministic — no randomness)
 

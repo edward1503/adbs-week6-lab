@@ -1,7 +1,7 @@
 """Week 6 lab autograder.  Run one part:  pytest -m task_b"""
 import pytest
 
-from conftest import close, explain, first_scan, h
+from conftest import close, explain, first_scan, h, normalize
 
 RANGE = "SELECT sum(price) FROM tickets WHERE event_id <= {n}"
 
@@ -40,11 +40,11 @@ def test_a2_observed_plans(db, ans):
     p30 = explain(db, RANGE.format(n=30), off)
     p150 = explain(db, RANGE.format(n=150), off)
     p150_on = explain(db, RANGE.format(n=150))
-    assert ans["a2_scan_30"] == first_scan(p30)["Node Type"], "Re-check the scan node for 30 events"
+    assert normalize(ans["a2_scan_30"]) == normalize(first_scan(p30)["Node Type"]), "Re-check the scan node for 30 events"
     assert close(ans["a2_buffers_30"], p30["Shared Hit Blocks"] + p30["Shared Read Blocks"], 0.05), \
         "Use the Buffers of the top node (shared hit + read)"
-    assert ans["a2_scan_150"] == first_scan(p150)["Node Type"]
-    assert ans["a2_scan_150_bitmap_on"] == first_scan(p150_on)["Node Type"]
+    assert normalize(ans["a2_scan_150"]) == normalize(first_scan(p150)["Node Type"])
+    assert normalize(ans["a2_scan_150_bitmap_on"]) == normalize(first_scan(p150_on)["Node Type"])
 
 
 @pytest.mark.task_a
@@ -113,7 +113,7 @@ def test_c2_pass2(ans):
 
 @pytest.mark.task_c
 def test_c2_pass3(ans):
-    assert h(ans["c2_pass3_choice_est"]) == "d7636687c9cb51fc", "Format: E-INL-T-HJ-B"
+    assert h(ans["c2_pass3_choice_est"]) == "d7636687c9cb51fc", "Format: outer table first, e.g. B-INL-T-HJ-E (use E, T, B)"
     assert h(ans["c2_pass3_cost_est"]) == "833cd8c0e698745b"
     assert h(ans["c2_chosen_plan_actual_cost"]) == "6bb731a8009cb35b", \
         "Re-cost the plan chosen with estimates, using actual cardinalities"
@@ -123,4 +123,5 @@ def test_c2_pass3(ans):
 # ------------------------------------------------------------------ exit ticket
 @pytest.mark.exit
 def test_exit_threshold(ans):
-    assert ans["exit_threshold_events"] in (57, 58), "Solve 63 + 22x < 63 + 1274"
+    assert normalize(ans["exit_threshold_events"]) == 57, \
+        "Largest integer x with 63 + 22x < 63 + 1274 — strict inequality, check your rounding"

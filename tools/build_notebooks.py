@@ -320,7 +320,7 @@ save(c2_et_inl_est=c2_et_inl_est, c2_et_inl_act=c2_et_inl_act, c2_et_hj=c2_et_hj
 """)
 md("""
 **Pass 3** — for each 2-table subset, take the plan that was **kept** and join the remaining table with HJ.
-1. Based on **estimates**, which plan does the optimizer pick and at what cost? Write the plan as `E-INL-T-HJ-B` or `B-HJ-T-HJ-E`.
+1. Based on **estimates**, which plan does the optimizer pick and at what cost? Write the plan outer table first, e.g. `B-INL-T-HJ-E` (letters E, T, B; joins INL or HJ).
 2. Recompute the **actual cost** of that same plan.
 3. What is the actual cost of the **best** plan?
 """)
