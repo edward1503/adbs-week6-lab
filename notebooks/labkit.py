@@ -153,7 +153,7 @@ def check(marker=None):
             hint = hint.removeprefix("AssertionError:").strip()
             hint = "" if hint.startswith("assert ") else hint
             print(f"  {kind} {test}" + (f" — hint: {hint}" if hint else ""))
-        elif line.split(" in ")[0].rstrip().endswith(("passed", "failed", "error", "errors",
+        elif line.split(" in ")[0].rstrip().endswith(("passed", "failed", "error", "errors", "skipped",
                                                       "deselected", "selected")):
             summary = line.split(" in ")[0].replace(", ", " · ")
     # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests

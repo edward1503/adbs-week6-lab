@@ -70,6 +70,8 @@ def test_b2_join_size(ans):
 
 @pytest.mark.task_b
 def test_b3_histogram(db, ans):
+    if ans.get("b3_price_gt_60_hand") is None and ans.get("b3_pg_est") is None:
+        pytest.skip("optional task B3 not attempted")
     bounds = db.execute("""SELECT histogram_bounds::text::numeric[] FROM pg_stats
                            WHERE tablename='tickets' AND attname='price'""").fetchone()[0]
     x, nb = 60, len(bounds) - 1
@@ -104,7 +106,7 @@ def test_c1_join_methods(db, ans):
 
 @pytest.mark.task_c
 def test_c2_pass2(ans):
-    assert h(ans["c2_et_inl_est"]) == "7182dd431b5c8833", "63 + |E'|*(2 index pages + 20 heap pages)"
+    assert h(ans["c2_et_inl_est"]) == "7182dd431b5c8833", "Mirror the buyers example: 63 + (number of events) × 22"
     assert h(ans["c2_et_inl_act"]) == "c91d793d0e481d8b", "Same formula with the ACTUAL |E'|"
     assert h(ans["c2_et_hj"]) == "5db1fee4b5703808", "Hash join reads both base tables once"
     assert h(ans["c2_bt_inl"]) == "666f3094ce81bff7"
@@ -113,7 +115,7 @@ def test_c2_pass2(ans):
 
 @pytest.mark.task_c
 def test_c2_pass3(ans):
-    assert h(ans["c2_pass3_choice_est"]) == "d7636687c9cb51fc", "Format: outer table first, e.g. B-INL-T-HJ-E (use E, T, B)"
+    assert h(ans["c2_pass3_choice_est"]) == "d7636687c9cb51fc", "Pick the plan with the smaller ESTIMATED cost; real costs use the actual 200 events"
     assert h(ans["c2_pass3_cost_est"]) == "833cd8c0e698745b"
     assert h(ans["c2_chosen_plan_actual_cost"]) == "6bb731a8009cb35b", \
         "Re-cost the plan chosen with estimates, using actual cardinalities"

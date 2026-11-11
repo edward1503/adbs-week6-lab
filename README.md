@@ -17,16 +17,22 @@ In the notebook, `check("task_a")` … `check()` runs the autograder; answers ar
 Reset the data (after ★★★ A4 or the extension): `docker compose down -v && docker compose up -d`.
 Stop: `docker compose stop`.
 
-## Lab outline
+## Lab outline (undergraduate level)
 
-| Minutes | Part | What students do | Slides |
-|---|---|---|---|
-| 0–5 | Warm-up | Vote: start the join from `events` or `buyers`? | L18 s3–4 |
-| 5–15 | **A** Access methods | Break-even selectivity seq scan vs unclustered index; verify with `EXPLAIN`; bitmap scan; composite-key matching | L16 s9–29 · L18 s6–7 |
-| 15–27 | **B** Cost estimation | Conjunction under independence (est 20 vs actual 200); join-size error; equi-depth histogram | L17 s14–36 |
-| 27–47 | **C** Plan search | Nested loop vs hash join in PostgreSQL; System R DP by hand → the estimate picks a plan 3.3× worse | L18 s9–22 |
-| 47–52 | **D** Extension | Pick one: extended statistics / histograms / DP + interesting orders / index-only & hash index | — |
-| 52–60 | Exit ticket | Break-even number of events for INL vs HJ | — |
+Every task follows **predict → measure with `EXPLAIN` → explain the gap**. The notebook opens with a one-line glossary
+(page, buffers, selectivity, Seq/Index Scan, estimated vs actual rows); formulas are given with the numbers to plug in,
+and C2 has a worked example.
+
+| Minutes | Part | Question | Required tasks | Optional |
+|---|---|---|---|---|
+| 0–5 | Warm-up | Start the join from `events` or `buyers`? | vote | — |
+| 5–17 | **A** Access methods | When is an index worth it? | A1 break-even, A2 measure (incl. bitmap), A3 two-column index | A4 CLUSTER |
+| 17–29 | **B** Cost estimation | How does the optimizer guess row counts? | B1 independence (est 20 vs 200), B2 join size | B3 histogram |
+| 29–49 | **C** Plan search | How does a wrong guess pick a slow plan? | C1 NL vs HJ in PostgreSQL, C2 System R by hand | C3 full query |
+| 49–55 | Exit ticket | Break-even number of events for INL vs HJ | — | — |
+| 55–60 | Wrap-up | Back to the vote; "going further" ideas | — | 4 home extensions |
+
+Optional tasks are skipped by the autograder when left blank.
 
 ## For the teaching team
 

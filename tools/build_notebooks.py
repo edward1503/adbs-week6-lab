@@ -19,23 +19,48 @@ def ans(student, solution): CELLS.append(("ans", student.strip(), solution.strip
 
 # =====================================================================
 md("""
-# Week 6 Lab — Which table does PostgreSQL join first?
-**Access Methods · Cost Estimation · Plan Search** · 60 minutes · work in pairs
+# Week 6 Lab — How does a database decide how to run your query?
+**Access methods · Cost estimation · Plan search** · 60 minutes · work in pairs
 
-You are a data engineer at a ticketing platform. A report needs the **revenue from Jazz tickets in Hanoi bought by Campus members**.
-For the next 60 minutes you play the optimizer: **predict with the formulas from the slides → measure with `EXPLAIN` → explain the gap.**
+When you send SQL to a database, a component called the **query optimizer** picks *how* to run it:
+which index to use, and in which order to join the tables. It does this by **guessing the cost** of each option and choosing the cheapest.
 
-| Minutes | Part | Edinburgh slides |
-|---|---|---|
-| 0–5 | Warm-up | L18 s3–4 |
-| 5–15 | **A** Access methods | L16 s9–11, 14–29 · L18 s6–7 |
-| 15–27 | **B** Cost estimation | L17 s14–21, 25–36 |
-| 27–47 | **C** Plan search | L18 s9–19, 22 |
-| 47–52 | **D** Extension kick-off | — |
-| 52–60 | Exit ticket | — |
+Today you will play the optimizer. Every task follows the same three steps:
 
-**Rules:** replace every `None` → run the cell → at the end of each part run `check(...)`. ★★★ tasks are optional.
-The cost unit in this lab is the **page**, as on the slides; `buffers` in `EXPLAIN` is the number of pages PostgreSQL touched.
+> **1. Predict** with a formula from the lecture → **2. Measure** with PostgreSQL's `EXPLAIN` → **3. Explain** why the two numbers differ.
+
+### The story
+You work for a ticket-selling website. Your manager asks:
+*"How much money did **Campus** members spend on **Jazz** concerts in **Hanoi**?"*
+
+| Table | Rows | What is in it |
+|---|---:|---|
+| `events` | 10,000 | one row per concert: `city`, `genre` |
+| `buyers` | 10,000 | one row per customer: `segment` (`Campus`, `VIP`, `Regular`) |
+| `tickets` | 200,000 | one row per ticket sold: `event_id`, `buyer_id`, `price` — **20 tickets per event** |
+
+### Words you need (one line each)
+| Word | Meaning |
+|---|---|
+| **page** | the database reads data from disk in blocks of 8 KB called pages. **Cost = number of pages read.** |
+| **buffers** | in `EXPLAIN` output, the number of pages PostgreSQL actually read. This is our "measured cost". |
+| **selectivity (sel)** | the fraction of rows that pass a filter. `sel = 0.01` means 1% of rows. |
+| **Seq Scan** | read the whole table, page by page. |
+| **Index Scan** | use an index (like a book's index) to jump to matching rows only. |
+| **estimated rows / actual rows** | how many rows PostgreSQL *guessed* vs. how many there *really* were. |
+
+### Plan for the hour
+| Minutes | Part | Question | Lecture |
+|---|---|---|---|
+| 0–5 | Warm-up | Which table would you start from? | L18 |
+| 5–17 | **A** Access methods | When is an index worth using? | L16, L18 s6 |
+| 17–29 | **B** Cost estimation | How does the optimizer guess row counts — and when is it wrong? | L17 |
+| 29–49 | **C** Plan search | How does a wrong guess lead to a slow plan? | L18 |
+| 49–55 | Exit ticket | — | — |
+| 55–60 | Wrap-up | Back to the warm-up vote | — |
+
+**How to work:** replace every `None` with your answer → run the cell → at the end of each part run `check(...)`.
+Tasks marked **(optional)** are for fast pairs; skipping them does not cost you anything.
 """)
 
 code("""
@@ -44,72 +69,97 @@ check("setup")                # you must see ✅ before you start
 """)
 
 md("""
-## 0 · Warm-up (5′)
-The report query:
+## 0 · Warm-up (5 min)
+This query answers the manager's question:
 ```sql
 SELECT sum(t.price) FROM tickets t
 JOIN events e ON e.id = t.event_id
 JOIN buyers b ON b.id = t.buyer_id
 WHERE e.city = 'Hanoi' AND e.genre = 'Jazz' AND b.segment = 'Campus';
 ```
-Each of you: if you were the optimizer, would you **start from `events` or from `buyers`**? Write one sentence of reasoning. Not graded — we come back to it at the end.
+**Your guess:** to answer it, should the database first find the *Jazz concerts in Hanoi* (`events`), or first find the *Campus buyers* (`buyers`)?
+There is no wrong answer here — we come back to it at the end.
 """)
 ans("""
 hook_vote = None      # 'events' or 'buyers'
-hook_reason = None    # one sentence
+hook_reason = None    # one sentence: why?
 save(hook_vote=hook_vote, hook_reason=hook_reason)
 """, """
 hook_vote = "events"
-hook_reason = "Filtering on city+genre looks more selective than the 500 Campus buyers."
+hook_reason = "Jazz-in-Hanoi sounds rarer than the 500 Campus buyers."
 save(hook_vote=hook_vote, hook_reason=hook_reason)
 """)
 
 # ===================================================================== A
 md("""
-## A · Access methods (10′)
-Query: `SELECT sum(price) FROM tickets WHERE event_id <= n` — there is an **unclustered** B+-tree on `event_id`.
+## A · Access methods — when is an index worth it? (12 min)
+We look at one simple query: **the total price of all tickets for events 1 … n**
+```sql
+SELECT sum(price) FROM tickets WHERE event_id <= n
+```
+There is an index on `tickets.event_id`. The tickets are stored in random order on disk (the index is **unclustered**),
+so every matching ticket is probably on a different page.
 
-Formulas (L18 s6), where `sel` = fraction of rows that satisfy the predicate:
-* Sequential scan: `NPages(R)`
-* Unclustered index: `(NPages(I) + NTuples(R)) · sel` — every matching row costs ~1 page (L16 s24)
+PostgreSQL has two options:
 
-### A1 ★ Break-even point
-Read `NPages` from the catalog, then solve `(NPages(I) + NTuples(R)) · sel* = NPages(R)`.
+| Option | Idea | Cost in pages (L18 slide 6) |
+|---|---|---|
+| **Seq Scan** | read every page of the table | `NPages(tickets)` — the same, whatever `n` is |
+| **Index Scan** | read the index, then fetch each matching ticket | `(NPages(index) + NTuples(tickets)) × sel` — roughly **1 page per matching ticket** |
+
+💡 **Key idea:** the index is cheap when few rows match, and expensive when many rows match.
+There is a **break-even** selectivity `sel*` where both cost the same.
+
+### A1 · Find the break-even point
+Run the cell below to read the table and index sizes from PostgreSQL's catalog.
 """)
 code("""
-sql(\"\"\"SELECT relname, relpages AS npages, reltuples::int AS ntuples
+sql(\"\"\"SELECT relname AS name, relpages AS npages, reltuples::int AS ntuples
        FROM pg_class WHERE relname IN ('tickets', 'idx_tickets_event')\"\"\")
 """)
+md("""
+Copy the two `npages` values, then set the two costs equal and solve for `sel*`:
+
+`(NPages(index) + 200000) × sel* = NPages(tickets)`  →  `sel* = NPages(tickets) / (NPages(index) + 200000)`
+""")
 ans("""
-a1_npages_t = None    # NPages(tickets)
-a1_npages_i = None    # NPages(idx_tickets_event)
-a1_sel_star = None    # your formula
+a1_npages_t = None    # npages of tickets
+a1_npages_i = None    # npages of idx_tickets_event
+a1_sel_star = None    # write the formula using the two variables above
 save(a1_npages_t=a1_npages_t, a1_npages_i=a1_npages_i, a1_sel_star=a1_sel_star)
+if a1_sel_star is not None:
+    print(f"sel* = {a1_sel_star:.2%} of tickets  ≈  {a1_sel_star * 10_000:.0f} events")
 """, """
 cat = sql("SELECT relname, relpages FROM pg_class WHERE relname IN ('tickets','idx_tickets_event')").set_index("relname").relpages
 a1_npages_t = int(cat["tickets"])
 a1_npages_i = int(cat["idx_tickets_event"])
 a1_sel_star = a1_npages_t / (a1_npages_i + 200_000)
-print(f"sel* = {a1_sel_star:.4%}  ≈ {a1_sel_star * 10_000:.0f} events")
 save(a1_npages_t=a1_npages_t, a1_npages_i=a1_npages_i, a1_sel_star=a1_sel_star)
+print(f"sel* = {a1_sel_star:.2%} of tickets  ≈  {a1_sel_star * 10_000:.0f} events")
 """)
 
 md("""
-### A2 ★ Measure it on PostgreSQL
-Every event has 20 tickets, so `event_id <= n` has `sel = n / 10 000`.
-First **turn bitmap scans off** so PostgreSQL only has the two options from the slide.
+### A2 · Check your prediction on PostgreSQL
+Each event has 20 tickets, so `event_id <= n` selects `n` out of 10,000 events.
+Your `sel*` says the index wins below about **64 events**. Let's test `n = 30` (below) and `n = 150` (above).
 
-✍️ **Predict before you run:** for `n = 30` and `n = 150`, does PostgreSQL pick `Index Scan` or `Seq Scan`? Roughly how many buffers at `n = 30`, according to the formula?
+(We switch off a third option called *bitmap scan* for now, so PostgreSQL has only the two options from the table.)
+
+✍️ **Predict first:** which scan will PostgreSQL choose for `n = 30`? For `n = 150`?
 """)
 code("""
 p30  = explain(RANGE.format(n=30),  "SET enable_bitmapscan=off")
 p150 = explain(RANGE.format(n=150), "SET enable_bitmapscan=off")
 display(p30, p150)
 """)
+md("""
+**How to read the output:** each line is one step (a "node") of the plan.
+Look for `Index Scan` or `Seq Scan`. `buffers=` on the **first line** is the total number of pages read.
+""")
 ans("""
-a2_scan_30 = None       # 'Index Scan' / 'Seq Scan' (read it from the plan)
-a2_buffers_30 = None    # buffers of the top node
-a2_scan_150 = None
+a2_scan_30 = None       # 'Index Scan' or 'Seq Scan'
+a2_buffers_30 = None    # buffers on the first line of the n=30 plan
+a2_scan_150 = None      # 'Index Scan' or 'Seq Scan'
 save(a2_scan_30=a2_scan_30, a2_buffers_30=a2_buffers_30, a2_scan_150=a2_scan_150)
 """, """
 a2_scan_30 = p30.scan["Node Type"]
@@ -119,86 +169,103 @@ print(f"formula: {(191 + 200_000) * 30 / 10_000:.0f} pages — measured: {a2_buf
 save(a2_scan_30=a2_scan_30, a2_buffers_30=a2_buffers_30, a2_scan_150=a2_scan_150)
 """)
 md("""
-Now **turn bitmap scans back on** (PostgreSQL's default) and rerun `n = 150`.
-💬 Why does PostgreSQL still use the index even though `sel` is above `sel*`? Hint: L16 s24 (sort rids, then read pages in order) and s29 (Bitmap Heap Scan).
+💬 Compare `a2_buffers_30` with the formula: `(NPages(index) + 200000) × 30/10000 ≈ 601` pages. Close?
+
+Now switch the **bitmap scan** back on (PostgreSQL's normal setting) and run `n = 150` again.
+A bitmap scan first collects all matching ticket locations, **sorts them by page**, and then reads each page only once (L16 slides 24, 29).
 """)
 code("""
 p150_on = explain(RANGE.format(n=150))
 p150_on
 """)
 ans("""
-a2_scan_150_bitmap_on = None
+a2_scan_150_bitmap_on = None    # the scan type on the second line
 save(a2_scan_150_bitmap_on=a2_scan_150_bitmap_on)
 """, """
 a2_scan_150_bitmap_on = p150_on.scan["Node Type"]
 save(a2_scan_150_bitmap_on=a2_scan_150_bitmap_on)
 """)
 code("""
-# (optional) interactive plan tree — needs internet
+# (optional) an interactive picture of the plan — needs internet
 show_pev2(p150_on)
 """)
 
 md("""
-### A3 ★ Composite search key (L16 s14–21)
-Assume a B+-tree on `events(city, genre)`. Which predicates does this index **match**? (`True`/`False`)
-1. `city = 'Hanoi' AND genre = 'Jazz'`
-2. `city = 'Hanoi'`
-3. `genre = 'Jazz'`
-4. `city > 'H' AND genre = 'Jazz'`
+### A3 · Indexes on two columns (L16 slides 14–21)
+Imagine an index on `events(city, genre)`. It is sorted like a **phone book sorted by last name, then first name**:
+first by `city`, and inside each city by `genre`.
+
+The index can be used if the matching rows sit **next to each other** in that sorted order.
+For each filter, answer `True` (the index can be used) or `False`:
+1. `city = 'Hanoi' AND genre = 'Jazz'` — like "Nguyen, An"
+2. `city = 'Hanoi'` — like "everyone named Nguyen"
+3. `genre = 'Jazz'` — like "everyone with first name An"
+4. `city > 'H' AND genre = 'Jazz'` — like "last name after H, first name An"
 """)
 ans("""
-a3_matches = [None, None, None, None]
+a3_matches = [None, None, None, None]    # e.g. [True, False, ...]
 save(a3_matches=a3_matches)
 """, """
-a3_matches = [True, True, False, False]   # 3: no prefix; 4: range before equality → not one contiguous key range
+a3_matches = [True, True, False, False]   # 3: no prefix; 4: range on first column → Jazz rows are scattered
 save(a3_matches=a3_matches)
 """)
 md("""
-#### ★★★ A4 (optional)
-Run `CLUSTER tickets USING idx_tickets_event; ANALYZE tickets;` and measure `n = 150` again with bitmap scans off.
-Use the clustered formula `(NPages(I) + NPages(R)) · sel` to explain the result. **Reset the data afterwards** (see README).
+#### (optional) A4 · Clustered index
+Run `sql("CLUSTER tickets USING idx_tickets_event")` and `sql("ANALYZE tickets")`, then measure `n = 150` again with bitmap scans off.
+Now the tickets are stored in `event_id` order. Use the clustered formula `(NPages(index) + NPages(tickets)) × sel` to explain the new result.
+**Afterwards reset the data:** `docker compose down -v && docker compose up -d`.
 """)
 code('check("task_a")')
 
 # ===================================================================== B
 md("""
-## B · Cost estimation (12′)
-The catalog stores `NTuples`, `NPages`, `NKeys` and histograms (L17 s14). Formulas:
-* `sel(A = c) = 1 / NKeys(A)` (L17 s17)
-* `sel(P1 ∧ P2) = sel(P1) · sel(P2)` — **independence assumption** (L17 s19)
-* `|R ⋈ S| ≈ |R| · |S| / max(NKeys(R.A), NKeys(S.A))` (L17 s21)
+## B · Cost estimation — how does the optimizer guess? (12 min)
+Before running a query, the optimizer must **guess how many rows** each step produces. It only has simple statistics,
+for example the number of distinct values in a column (`NKeys`). Three rules from L17:
 
-### B1 ★ Two filters on `events`
+| Rule | Formula | In words |
+|---|---|---|
+| equality | `sel(A = c) = 1 / NKeys(A)` | each value is equally common |
+| AND | `sel(P1 AND P2) = sel(P1) × sel(P2)` | the two conditions are **independent** |
+| join | `|R ⋈ S| = |R| × |S| / NKeys` | each row of R matches `|S| / NKeys` rows of S |
+
+### B1 · Two filters on `events`
 """)
 code("""
-sql(\"\"\"SELECT attname, n_distinct AS nkeys, most_common_freqs[1] AS freq_of_top_value
+sql(\"\"\"SELECT attname AS column, n_distinct AS nkeys
        FROM pg_stats WHERE tablename = 'events' AND attname IN ('city', 'genre')\"\"\")
 """)
-md("✍️ Use the formulas to predict how many events satisfy `city = 'Hanoi' AND genre = 'Jazz'`, **then** run the next cell.")
+md("""
+There are 10 cities and 50 genres. ✍️ **Predict** with the rules above: how many of the 10,000 events are Jazz **and** in Hanoi?
+""")
 ans("""
-b1_est = None      # your prediction = PostgreSQL's estimate?
+b1_est = None      # 10000 × sel(city) × sel(genre)
 save(b1_est=b1_est)
 """, """
 b1_est = round(10_000 * (1 / 10) * (1 / 50))
 save(b1_est=b1_est)
 """)
+md("Now ask PostgreSQL. Look at `est rows` (its guess) and `actual rows` (the truth).")
 code("""
 pb1 = explain("SELECT * FROM events WHERE city = 'Hanoi' AND genre = 'Jazz'")
 pb1
 """)
 ans("""
 b1_actual = None
-b1_violated_assumption = None   # which assumption from the slides is violated?
+b1_violated_assumption = None   # which assumption in the table above is wrong for this data?
 save(b1_actual=b1_actual, b1_violated_assumption=b1_violated_assumption)
 """, """
 b1_actual = pb1.root["Actual Rows"]
 b1_violated_assumption = "independence of predicates — every Jazz event is in Hanoi"
 save(b1_actual=b1_actual, b1_violated_assumption=b1_violated_assumption)
 """)
-
 md("""
-### B2 ★ The error propagates into the join
-Use the L17 s21 formula with the **estimated** `|E'|` from B1, `|T| = 200 000`, `NKeys = 10 000`.
+💡 In this dataset **every** Jazz concert is in Hanoi (Hanoi is the jazz city). Knowing the genre tells you the city,
+so the two conditions are *not* independent — and the guess is 10× too small.
+
+### B2 · The mistake grows in the join
+Each event has 20 tickets. Use the **estimated** number of events from B1:
+`estimated tickets = b1_est × 200000 / 10000`.
 """)
 ans("""
 b2_est = None
@@ -213,7 +280,7 @@ pb2 = explain(\"\"\"SELECT t.* FROM events e JOIN tickets t ON t.event_id = e.id
 pb2
 """)
 ans("""
-b2_actual = None   # actual rows of the join node
+b2_actual = None   # actual rows on the first line
 save(b2_actual=b2_actual)
 """, """
 b2_actual = pb2.root["Actual Rows"]
@@ -221,9 +288,10 @@ save(b2_actual=b2_actual)
 """)
 
 md("""
-### B3 ★★ Equi-depth histogram (L17 s31–35)
-PostgreSQL's `histogram_bounds` is an **equi-depth** histogram: 11 bounds → 10 buckets, each holding ~10% of the rows.
-Estimate `price > 60` = buckets entirely above 60 + the fraction of the bucket that contains 60 (assume uniform within a bucket).
+#### (optional) B3 · Histograms (L17 slides 31–35)
+For a number column like `price`, PostgreSQL keeps an **equi-depth histogram**: 11 boundaries that cut the prices into
+10 buckets, each holding about 10% of the tickets.
+To estimate `price > 60`: count the buckets completely above 60, add the fraction of the bucket that contains 60, then multiply by 20,000 tickets per bucket.
 """)
 code("""
 bounds = [float(x) for x in sql(\"\"\"SELECT unnest(histogram_bounds::text::numeric[]) AS b
@@ -231,7 +299,7 @@ bounds = [float(x) for x in sql(\"\"\"SELECT unnest(histogram_bounds::text::nume
 bounds
 """)
 ans("""
-b3_price_gt_60_hand = None   # your estimated row count (out of 200 000 tickets)
+b3_price_gt_60_hand = None   # your estimate (out of 200000 tickets)
 save(b3_price_gt_60_hand=b3_price_gt_60_hand)
 """, """
 frac = sum(1 if lo >= 60 else (hi - 60) / (hi - lo) if hi > 60 else 0
@@ -244,7 +312,7 @@ pb3 = explain("SELECT count(*) FROM tickets WHERE price > 60")
 pb3
 """)
 ans("""
-b3_pg_est = None   # est rows of the Seq Scan
+b3_pg_est = None   # est rows of the Seq Scan line
 save(b3_pg_est=b3_pg_est)
 """, """
 b3_pg_est = pb3.scan["Plan Rows"]
@@ -254,10 +322,17 @@ code('check("task_b")')
 
 # ===================================================================== C
 md("""
-## C · Plan search (20′)
-### C1 ★ Two join algorithms in real PostgreSQL (L18 s11–12)
-Join the filtered `events` with `tickets`. Run the default plan, then forbid nested loops.
-✍️ Predict: what does PostgreSQL pick by default, given it **believes** there are only 20 events?
+## C · Plan search — how a wrong guess picks a slow plan (20 min)
+To join `events` with `tickets`, PostgreSQL has two main algorithms (L18 slides 11–12):
+
+| Algorithm | How it works | Good when |
+|---|---|---|
+| **Index nested loop (INL)** | for **each** event, look up its tickets in the index | there are **few** events |
+| **Hash join (HJ)** | read **all** tickets once, match them using a hash table | there are **many** events |
+
+### C1 · Watch PostgreSQL choose
+PostgreSQL believes there are only 20 Jazz-in-Hanoi events (B1). ✍️ **Predict:** which algorithm will it pick?
+We run the query twice: once normally, once with nested loop forbidden (so we can see the hash join).
 """)
 code("""
 SQL_ET = \"\"\"SELECT sum(t.price) FROM events e JOIN tickets t ON t.event_id = e.id
@@ -267,117 +342,102 @@ pc_hj = explain(SQL_ET, "SET enable_nestloop=off")
 display(pc_nl, pc_hj)
 """)
 ans("""
-c1_nl_buffers = None
-c1_hj_buffers = None
+c1_nl_buffers = None   # buffers on the first line of the first plan (Nested Loop)
+c1_hj_buffers = None   # buffers on the first line of the second plan (Hash Join)
 save(c1_nl_buffers=c1_nl_buffers, c1_hj_buffers=c1_hj_buffers)
 """, """
 c1_nl_buffers, c1_hj_buffers = pc_nl.buffers, pc_hj.buffers
 save(c1_nl_buffers=c1_nl_buffers, c1_hj_buffers=c1_hj_buffers)
 """)
+md("💬 PostgreSQL picked the plan that reads about **3× more pages**. Why? (Hint: B1.)")
 
 md("""
-### C2 ★★ System R-style dynamic programming (L18 s12–19, 22)
-**The lab's cost model** — in pages, validated against C1:
+### C2 · Be the optimizer (System R, L18 slides 12–19)
+Now you do what the optimizer does: compute the cost of every plan and keep the cheapest.
+We use a simple cost model, in pages:
 
-| Operation | Cost (pages) | Source |
-|---|---|---|
-| Read + filter `events` / `buyers` / `tickets` | `NPages`: **63 / 51 / 1 274** | L18 s6 |
-| **INL** into `tickets` (index on `event_id` or `buyer_id`) | per outer row: **2** index pages (root → leaf) + **20** heap pages (20 tickets, unclustered) | L16 s23–24 |
-| **HJ** with a base table | read that whole table: `NPages` (the outer input is pipelined, no extra cost) | — |
+| Step | Cost in pages |
+|---|---|
+| read `events` / `buyers` / `tickets` | **63 / 51 / 1274** |
+| **INL** into `tickets` | **22 per outer row** (2 index pages + 20 tickets, each on its own page) |
+| **HJ** with a table | read that table once (its page count above) |
 
-**Rules:** left-deep trees · no cross products · keep only the cheapest plan per subset · in pass 3 the remaining table is joined with HJ.
+Short names: **E'** = Jazz-in-Hanoi events (estimated **20**, actually **200**) · **B'** = Campus buyers (**500**) · **T** = tickets.
 
-**Cardinalities:** `|E'|` estimated **20**, actual **200** · `|B'| = 500` · every event and every buyer has 20 tickets.
-
-**Pass 2** — fill in the cost of each candidate (including the cost of reading the outer table):
-
-| Subset | Candidate | Estimated | Actual |
-|---|---|---|---|
-| {E,T} | E' →INL T | `c2_et_inl_est` | `c2_et_inl_act` |
-| {E,T} | E' ⋈HJ T | `c2_et_hj` | (same as left) |
-| {B,T} | B' →INL T | `c2_bt_inl` | (same as left) |
-| {B,T} | B' ⋈HJ T | `c2_bt_hj` | (same as left) |
-| {E,B} | — | cross product → pruned | |
+**Step 1 — join two tables.** The `buyers` rows are done for you as a worked example. Fill in the `events` rows the same way.
 """)
 ans("""
-c2_et_inl_est = None
-c2_et_inl_act = None
-c2_et_hj = None
-c2_bt_inl = None
-c2_bt_hj = None
+# worked example: start from Campus buyers (500 rows)
+c2_bt_inl = 51 + 500 * 22         # read buyers, then 22 pages per buyer   = 11051
+c2_bt_hj  = 51 + 1274             # read buyers, then read tickets once     = 1325
+
+# your turn: start from Jazz-in-Hanoi events
+c2_et_inl_est = None              # using the ESTIMATED 20 events
+c2_et_inl_act = None              # same formula with the ACTUAL 200 events
+c2_et_hj      = None              # read events, then read tickets once
 save(c2_et_inl_est=c2_et_inl_est, c2_et_inl_act=c2_et_inl_act, c2_et_hj=c2_et_hj,
      c2_bt_inl=c2_bt_inl, c2_bt_hj=c2_bt_hj)
 """, """
-NP_E, NP_B, NP_T, PROBE = 63, 51, 1274, 2 + 20
-inl = lambda outer_pages, outer_rows: outer_pages + outer_rows * PROBE
-c2_et_inl_est = inl(NP_E, 20)       # 503
-c2_et_inl_act = inl(NP_E, 200)      # 4463
-c2_et_hj = NP_E + NP_T              # 1337
-c2_bt_inl = inl(NP_B, 500)          # 11051
-c2_bt_hj = NP_B + NP_T              # 1325
+c2_bt_inl = 51 + 500 * 22         # 11051
+c2_bt_hj  = 51 + 1274             # 1325
+c2_et_inl_est = 63 + 20 * 22      # 503
+c2_et_inl_act = 63 + 200 * 22     # 4463
+c2_et_hj      = 63 + 1274         # 1337
 save(c2_et_inl_est=c2_et_inl_est, c2_et_inl_act=c2_et_inl_act, c2_et_hj=c2_et_hj,
      c2_bt_inl=c2_bt_inl, c2_bt_hj=c2_bt_hj)
 """)
 md("""
-**Pass 3** — for each 2-table subset, take the plan that was **kept** and join the remaining table with HJ.
-1. Based on **estimates**, which plan does the optimizer pick and at what cost? Write the plan outer table first, e.g. `B-INL-T-HJ-E` (letters E, T, B; joins INL or HJ).
-2. Recompute the **actual cost** of that same plan.
-3. What is the actual cost of the **best** plan?
+The optimizer keeps only the cheapest way to join each pair, judged by its **estimates**:
+* {B, T}: HJ (1325) is cheaper than INL (11051) → keep **B' HJ T**
+* {E, T}: compare your `c2_et_inl_est` with `c2_et_hj` → which one is kept?
+
+**Step 2 — add the third table** with a hash join. That means adding the pages of the table that is still missing:
+
+| Plan | Estimated cost |
+|---|---|
+| `E-INL-T-HJ-B` : (E' INL T), then hash join with buyers | `c2_et_inl_est + 51` |
+| `B-HJ-T-HJ-E` : (B' HJ T), then hash join with events | `c2_bt_hj + 63` |
+
+1. Which plan does the optimizer choose, and what is its **estimated** cost?
+2. What does the chosen plan **really** cost? (Use `c2_et_inl_act` or `c2_bt_hj` instead.)
+3. What is the real cost of the **best** plan? (Real cost of both plans, take the smaller.)
 """)
 ans("""
-c2_pass3_choice_est = None
-c2_pass3_cost_est = None
-c2_chosen_plan_actual_cost = None
-c2_best_actual_cost = None
+c2_pass3_choice_est = None          # 'E-INL-T-HJ-B' or 'B-HJ-T-HJ-E'
+c2_pass3_cost_est = None            # its estimated cost
+c2_chosen_plan_actual_cost = None   # real cost of the chosen plan
+c2_best_actual_cost = None          # real cost of the best plan
 save(c2_pass3_choice_est=c2_pass3_choice_est, c2_pass3_cost_est=c2_pass3_cost_est,
      c2_chosen_plan_actual_cost=c2_chosen_plan_actual_cost, c2_best_actual_cost=c2_best_actual_cost)
 """, """
-est_plans = {"E-INL-T-HJ-B": c2_et_inl_est + NP_B, "B-HJ-T-HJ-E": c2_bt_hj + NP_E}
+est_plans = {"E-INL-T-HJ-B": c2_et_inl_est + 51, "B-HJ-T-HJ-E": c2_bt_hj + 63}
 c2_pass3_choice_est = min(est_plans, key=est_plans.get)          # E-INL-T-HJ-B
 c2_pass3_cost_est = est_plans[c2_pass3_choice_est]                # 554
-c2_chosen_plan_actual_cost = c2_et_inl_act + NP_B                 # 4514
-c2_best_actual_cost = min(c2_et_hj + NP_B, c2_bt_hj + NP_E)       # 1388 (the two HJ plans tie)
-print(est_plans, "→ actual", c2_chosen_plan_actual_cost, "vs best", c2_best_actual_cost)
+c2_chosen_plan_actual_cost = c2_et_inl_act + 51                   # 4514
+c2_best_actual_cost = min(c2_et_hj + 51, c2_bt_hj + 63)           # 1388 (both hash-join plans tie)
+print(est_plans, "→ real", c2_chosen_plan_actual_cost, "vs best", c2_best_actual_cost)
 save(c2_pass3_choice_est=c2_pass3_choice_est, c2_pass3_cost_est=c2_pass3_cost_est,
      c2_chosen_plan_actual_cost=c2_chosen_plan_actual_cost, c2_best_actual_cost=c2_best_actual_cost)
 """)
 md("""
-💬 One sentence: why does the error from B1 make the optimizer choose wrongly in pass 2?
+💬 The optimizer did everything right *with the numbers it had* — the plan is slow only because the estimate from B1 was wrong.
 
-#### ★★★ C3 (not graded) — what does real PostgreSQL do with the full query?
-Compare its buffers with your `c2_chosen_plan_actual_cost`. How does PostgreSQL join `buyers`, and why does it cost more than the model?
+#### (optional) C3 · What does PostgreSQL do with the full query?
+Compare its buffers with your `c2_chosen_plan_actual_cost`. How does it join `buyers`?
 """)
 code("""
 explain(QUERY)
 """)
 code('check("task_c")')
 
-# ===================================================================== D
-md("""
-## D · Extension kick-off (5′) — continue at home
-Pick **one** direction and write down a hypothesis and a metric. Deliverable: a notebook/short report with `EXPLAIN` before/after.
-1. **Statistics:** `CREATE STATISTICS ... ON city, genre FROM events` with `(dependencies)` and with `(mcv)`. Which one fixes the estimate? Does PostgreSQL change the plan for `QUERY`? (L17 s19, L18)
-2. **Histograms:** implement equi-width and equi-depth histograms for `tickets.price` yourself; measure the error vs number of buckets. (L17 s26–35)
-3. **Search:** write a DP for 4 tables, add sort-merge join and *interesting orders*; count the plans considered vs L18 s9. (L18 s20–23)
-4. **Access method:** an index on `(event_id, price)` to get an index-only scan for `sum(price)`; or compare a hash index with a B+-tree. (L16 s22, s25)
-""")
-ans("""
-d_option = None       # 1..4
-d_hypothesis = None
-d_metric = None       # what will you measure?
-save(d_option=d_option, d_hypothesis=d_hypothesis, d_metric=d_metric)
-""", """
-d_option = 1
-d_hypothesis = "MCV statistics on (city, genre) give an estimate of 200, so PostgreSQL drops the nested loop; dependencies do not."
-d_metric = "est rows of the events scan, join type, buffers of QUERY before/after"
-save(d_option=d_option, d_hypothesis=d_hypothesis, d_metric=d_metric)
-""")
-
 # ===================================================================== Exit
 md("""
-## Exit ticket (individual)
-Using the C2 cost model: **up to how many (actual) Jazz events** is `E' →INL T` still cheaper than `E' ⋈HJ T`?
-Compare this number with `sel*` from part A — what do you notice?
+## Exit ticket (individual, 6 min)
+With the C2 cost model, joining E' with T costs:
+* INL: `63 + 22 × x` pages, where `x` = number of Jazz events
+* HJ: `63 + 1274` pages, whatever `x` is
+
+**What is the largest whole number `x` for which INL is still cheaper than HJ?**
 """)
 ans("""
 exit_threshold_events = None
@@ -388,6 +448,35 @@ save(exit_threshold_events=exit_threshold_events)
 """)
 code("""
 check()    # the whole lab
+""")
+
+# ===================================================================== Wrap-up
+md("""
+## Wrap-up (5 min)
+Back to the warm-up: **start from `events` or from `buyers`?**
+* With the *estimated* 20 events, starting from `events` with an index nested loop looks cheapest.
+* With the *real* 200 events, the hash-join plans are about **3× cheaper**.
+
+**Take-away:** the optimizer's search is correct, but it is only as good as its row estimates.
+A single wrong assumption (independence of `city` and `genre`) changes the join algorithm.
+
+## Going further (optional, at home)
+Pick **one** and write down what you expect to happen and what you will measure:
+1. **Fix the estimate:** `sql("CREATE STATISTICS ev_stats (mcv) ON city, genre FROM events")`, then `sql("ANALYZE events")`. Does `explain(QUERY)` change? Try `(dependencies)` instead of `(mcv)` too.
+2. **Histograms:** write your own equi-width and equi-depth histograms for `tickets.price` and compare their errors.
+3. **Search:** write a small program that enumerates all left-deep plans for 3–4 tables with the C2 cost model.
+4. **Index-only scan:** create an index on `tickets(event_id, price)` and see how the plan for part A changes.
+""")
+ans("""
+d_option = None       # 1..4, or None if you skip it
+d_hypothesis = None   # what do you expect?
+d_metric = None       # what will you measure?
+save(d_option=d_option, d_hypothesis=d_hypothesis, d_metric=d_metric)
+""", """
+d_option = 1
+d_hypothesis = "MCV statistics on (city, genre) give an estimate of 200, so PostgreSQL drops the nested loop; dependencies do not."
+d_metric = "est rows of the events scan, join type, buffers of QUERY before/after"
+save(d_option=d_option, d_hypothesis=d_hypothesis, d_metric=d_metric)
 """)
 md("Thank you! Please fill in the 2-minute feedback form: **[Canvas link]**.")
 
