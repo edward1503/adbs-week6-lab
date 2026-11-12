@@ -5,18 +5,38 @@ A 60-minute lab for COMP5330 Week 6 (Monday 30 November 2026), on Edinburgh ADBS
 Students watch PostgreSQL choose between an index and a full scan, find out why one of its row
 estimates is 10 times too small, and fix it with better statistics: the same query then reads about 12 times fewer pages.
 
-This repository contains the answers. Students only get the student zip (see "Edit and release").
+This repository contains the answers. Keep it private: students only get the student zip (see "Edit and release").
 
-## Run it
+## Try the lab yourself
 
-You need Docker (Docker Desktop on Windows or macOS), about 3 GB of free disk and 1.5 GB of free memory.
+You need about 3 GB of free disk space. The first start takes a few minutes; after that it starts in seconds.
 
-```
-docker compose up -d --build
-```
+1. **Install Docker Desktop** from https://www.docker.com/products/docker-desktop/ and keep the default options
+   (on Windows, choose AMD64 unless your laptop has a Snapdragon processor). Open it, skip signing in,
+   and wait until it shows "Engine running" in the bottom-left corner.
+2. **Download this repository:** at the top of this page, click the green **Code** button, then **Download ZIP**,
+   and unzip it. (With git: `git clone https://github.com/edward1503/adbs-week6-lab.git`.)
+3. **Open a terminal in the unzipped folder.** On Windows 11, right-click an empty spot in the folder and choose
+   "Open in Terminal". On a Mac, open Terminal, type `cd ` (with a space), drag the folder into the window, and press Enter.
+4. **Start the lab:**
 
-Open http://localhost:8888. `notebooks/lab.ipynb` is what students see, and `solution/solution.ipynb` is the solution key.
-Stop with `docker compose stop`. Reset the data with `docker compose down -v`, then `docker compose up -d`.
+   ```
+   docker compose up -d --build
+   ```
+
+5. **Open http://localhost:8888** in your browser.
+   - `notebooks/lab.ipynb` opens first. This is what students see.
+   - `solution/solution.ipynb` is the solution key. Choose Run, then Run All Cells:
+     every `check(...)` cell should say that all checks passed.
+
+| To ... | Run this in the lab folder |
+|---|---|
+| stop the lab | `docker compose stop` |
+| start it again later | `docker compose up -d` (Docker Desktop must be open) |
+| reset the data | `docker compose down -v`, then `docker compose up -d` |
+
+Only one copy of the lab can run at a time. If you download a newer version, first run
+`docker compose down -v` in the old folder.
 
 ## What students do
 
