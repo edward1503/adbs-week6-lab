@@ -25,9 +25,10 @@ this file; do not quietly work around it.
 After a change to the notebooks, `labkit.py`, `tests/`, the data or `docker-compose.yml`,
 on a laptop with Docker:
 
-1. Fresh database: `docker compose down -v && docker compose up -d --build`.
+1. Fresh database: `docker compose down -v`, then `docker compose up -d --build`
+   (two commands: Windows PowerShell does not accept `&&`).
 2. Open `solution/solution.ipynb` (http://localhost:8888/lab/tree/solution/solution.ipynb) and run
-   all cells. Every `check(...)` cell prints ✅.
+   all cells. Every `check(...)` cell says that all checks passed.
 3. `uv run --no-project --with nbformat python tools/make_student_release.py` ends with
    "student package: …", not with "LEAK".
 4. Throw away what the run changed: `git restore notebooks/ solution/ answers.json`.
@@ -36,8 +37,8 @@ Changes to Markdown files only (README, this file) need no check.
 
 ## 4. Numbers in the text come from a run
 
-- The notebook text and the README quote measured numbers ("≈ 601 pages", "about 64 events",
-  "about 3× more pages", the dry-run table). After a change to the data, to the planner settings
+- The notebook text and the README quote measured numbers ("about 600 pages", "about 64 events",
+  "about 3 times more pages", the dry-run table). After a change to the data, to the planner settings
   in `docker-compose.yml` or to the PostgreSQL version, rerun the solution and update every
   quoted number.
 - The dry-run table in `README.md` says the date and the PostgreSQL version it was measured with.
