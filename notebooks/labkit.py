@@ -2,6 +2,7 @@
 import html
 import json
 import os
+import re
 import subprocess
 import sys
 import warnings
@@ -23,6 +24,7 @@ _conn = psycopg.connect(
 )
 
 RANGE = "SELECT sum(price) FROM tickets WHERE event_id <= {n}"
+SWEEP = (10, 30, 50, 70, 100, 150, 300)      # values of n in Part A; tests/test_lab.py uses the same
 QUERY = """SELECT sum(t.price)
 FROM tickets t
 JOIN events e ON e.id = t.event_id
@@ -78,7 +80,7 @@ class Plan:
             lines.append(
                 f"{'   ' * depth}-> {n['Node Type']}{rel}{idx}  "
                 f"est rows={n['Plan Rows']:,}  actual rows={n['Actual Rows']:,}{loops_txt}"
-                f"  cost={n['Total Cost']:,.0f}  buffers={bufs:,}")
+                f"  buffers={bufs:,}")
             for c in n.get("Plans", []):
                 walk(c, depth + 1)
 
@@ -101,6 +103,15 @@ def explain(query, settings=""):
     p = Plan(raw[0]["Plan"], query)
     p.raw = raw
     return p
+
+
+def scan_sweep(values=SWEEP):
+    """Part A: run RANGE for each n with bitmap scans off; one row per n."""
+    rows = []
+    for n in values:
+        p = explain(RANGE.format(n=n), "SET enable_bitmapscan=off")
+        rows.append({"n": n, "matching tickets": 20 * n, "scan": p.scan["Node Type"], "pages read": p.buffers})
+    return pd.DataFrame(rows).set_index("n")
 
 
 def show_pev2(plan, height=520):
@@ -129,45 +140,53 @@ def save(**answers):
     print("saved:", ", ".join(f"{k}={v!r}" for k, v in answers.items()))
 
 
-MARKERS = ("setup", "task_a", "task_b", "task_c", "exit")
+MARKERS = ("setup", "task_a", "task_b", "task_c", "exit", "extras")
+# test name (without "test_") -> task name shown to students
+LABELS = {"setup": "Setup", "a1": "A1", "a2": "A2", "b1": "B1", "c1": "C1", "c2": "C2",
+          "exit_ticket": "Exit ticket", "extra_histogram": "Extra 2", "extra_optimizer": "Extra 3"}
+NOT_RUNNING = ("Could not run the checks. Is the database running?\n"
+               "Start Docker Desktop, then run this in your terminal:  docker compose up -d\n"
+               "Then run this cell again.")
 
 
-def check(marker=None):
-    """Run the autograder for one part: check('task_a'), ..., or check() for all."""
-    if marker is not None and marker not in MARKERS:
-        print(f"❌ unknown part {marker!r} — use one of {', '.join(MARKERS)} or check()")
-        return False
+def check(part=None):
+    """Check your answers: check("task_a"), ..., check("extras"), or check() for the whole lab."""
+    if part is not None and part not in MARKERS:
+        print(f"There is no part called {part!r}. Use one of {', '.join(MARKERS)}, or check() for everything.")
+        return
     cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "--tb=no", "-rfE",
            "--color=no", "-p", "no:cacheprovider", "-W", "ignore"]
-    if marker:
-        cmd += ["-m", marker]
+    if part:
+        cmd += ["-m", part]
     env = {**os.environ, "ANSWERS": str(ANSWERS), "PYTHONIOENCODING": "utf-8", "COLUMNS": "400"}
     res = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True,
                          text=True, encoding="utf-8")
-    summary = ""
+    # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests
+    if res.returncode not in (0, 1, 5):
+        print(NOT_RUNNING)
+        print((res.stdout + res.stderr).strip()[-800:])
+        return
+    counts, wrong = {}, []
     for line in res.stdout.splitlines():
-        if line.startswith(("FAILED", "ERROR")):
-            kind = "✗" if line.startswith("FAILED") else "⚠ error in"
+        if line.startswith("ERROR"):            # a fixture failed: no database or no answers file
+            print(NOT_RUNNING)
+            return
+        if line.startswith("FAILED"):
             test = line.split("::")[-1].split(" ")[0].removeprefix("test_")
             hint = line.split(" - ", 1)[-1].strip() if " - " in line else ""
             hint = hint.removeprefix("AssertionError:").strip()
             hint = "" if hint.startswith("assert ") else hint
-            print(f"  {kind} {test}" + (f" — hint: {hint}" if hint else ""))
-        elif line.split(" in ")[0].rstrip().endswith(("passed", "failed", "error", "errors", "skipped",
-                                                      "deselected", "selected")):
-            summary = line.split(" in ")[0].replace(", ", " · ")
-    # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests
-    if res.returncode == 0:
-        print("✅ " + summary)
-    elif res.returncode == 1:
-        print("❌ " + summary)
-        if "error" in summary:
-            print("   ⚠ errors are environment problems, not wrong answers — is the database up? "
-                  "Try `docker compose up -d`, then rerun.")
-    elif res.returncode == 5:
-        print("⚠ no tests collected" + (f" for {marker!r}" if marker else ""))
+            wrong.append(f"  {LABELS.get(test, test)}" + (f": {hint}" if hint else ""))
+        for number, word in re.findall(r"(\d+) (passed|failed|skipped)", line.split(" in ")[0]):
+            counts[word] = int(number)
+    total = counts.get("passed", 0) + counts.get("failed", 0)
+    if total == 0:
+        print("No checks found for this part.")
+    elif not wrong:
+        print("1 check passed." if total == 1 else f"All {total} checks passed.")
     else:
-        print(f"⚠ autograder could not run (pytest exit code {res.returncode}) — "
-              "is the database up? Try `docker compose up -d`.")
-        print((res.stdout + res.stderr).strip()[-800:])
-    return res.returncode == 0
+        print(f"{len(wrong)} of {total} {'check' if total == 1 else 'checks'} "
+              f"{'needs' if len(wrong) == 1 else 'need'} another look:")
+        print("\n".join(wrong))
+    if counts.get("skipped"):
+        print("(Extra tasks you left blank were skipped.)")
