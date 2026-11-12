@@ -38,6 +38,7 @@ Optional tasks are skipped by the autograder when left blank.
 
 | File | Contents |
 |---|---|
+| `AGENTS.md` | **Rules for working in this repo** (people and AI assistants) — read first |
 | `tools/build_notebooks.py` | **Single source** of the student and solution notebooks — edit here, then rebuild |
 | `notebooks/labkit.py` | `sql()`, `explain()`, `show_pev2()`, `save()`, `check()` |
 | `solution/solution.ipynb` | Solution key, computed live from the database (no machine-dependent numbers hard-coded) |
