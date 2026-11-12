@@ -117,7 +117,7 @@ a1_pages_per_ticket = None    # pages read at n = 30, divided by 600
 save(a1_first_seq_scan_n=a1_first_seq_scan_n, a1_pages_per_ticket=a1_pages_per_ticket)
 """, """
 a1_first_seq_scan_n = int(sweep.index[sweep.scan == "Seq Scan"][0])
-a1_pages_per_ticket = round(sweep.loc[30, "pages read"] / 600, 2)
+a1_pages_per_ticket = round(float(sweep.loc[30, "pages read"]) / 600, 2)
 save(a1_first_seq_scan_n=a1_first_seq_scan_n, a1_pages_per_ticket=a1_pages_per_ticket)
 """)
 md("""

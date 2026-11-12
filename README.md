@@ -89,3 +89,4 @@ PostgreSQL 17.6, 9 November 2026 (Duc):
 `CREATE STATISTICS (dependencies)` does not fix the plan (estimate 24), which the first idea for home asks about.
 
 Windows laptop, Docker Desktop 4.99.0, 12 November 2026 (Khai): the student zip starts in about 2 minutes and uses 3.2 GB of disk.
+The solution notebook passes all checks with the same numbers as above (histogram estimate 49,030).
