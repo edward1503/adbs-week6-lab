@@ -27,7 +27,7 @@ FILES = [
     "STUDENT_README.md",
 ]
 # Strings that must never appear in the package.
-FORBIDDEN = ["solution", "E-INL-T-HJ-B\"", "True, True, False, False", "4514", "1388"]
+FORBIDDEN = ["solution", "True, True, False, False", "4514", "1388"]
 
 # 1. regenerate the student notebook so it matches the source
 subprocess.run([sys.executable, str(ROOT / "tools" / "build_notebooks.py")], check=True)

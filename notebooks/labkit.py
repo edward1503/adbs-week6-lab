@@ -2,6 +2,7 @@
 import html
 import json
 import os
+import re
 import subprocess
 import sys
 import warnings
@@ -130,44 +131,52 @@ def save(**answers):
 
 
 MARKERS = ("setup", "task_a", "task_b", "task_c", "exit")
+# test name (without "test_") -> task name shown to students
+LABELS = {"setup": "Setup", "a2": "A2", "a3": "A3", "b1": "B1", "b2": "B2", "b3": "B3", "c1": "C1",
+          "c2_step1": "C2, step 1", "c2_step2": "C2, step 2", "exit_ticket": "Exit ticket"}
+NOT_RUNNING = ("Could not run the checks. Is the database running?\n"
+               "Start Docker Desktop, then run this in your terminal:  docker compose up -d\n"
+               "Then run this cell again.")
 
 
-def check(marker=None):
-    """Run the autograder for one part: check('task_a'), ..., or check() for all."""
-    if marker is not None and marker not in MARKERS:
-        print(f"❌ unknown part {marker!r} — use one of {', '.join(MARKERS)} or check()")
-        return False
+def check(part=None):
+    """Check your answers: check("task_a"), check("task_b"), check("task_c"), or check() for the whole lab."""
+    if part is not None and part not in MARKERS:
+        print(f"There is no part called {part!r}. Use one of {', '.join(MARKERS)}, or check() for everything.")
+        return
     cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "--tb=no", "-rfE",
            "--color=no", "-p", "no:cacheprovider", "-W", "ignore"]
-    if marker:
-        cmd += ["-m", marker]
+    if part:
+        cmd += ["-m", part]
     env = {**os.environ, "ANSWERS": str(ANSWERS), "PYTHONIOENCODING": "utf-8", "COLUMNS": "400"}
     res = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True,
                          text=True, encoding="utf-8")
-    summary = ""
+    # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests
+    if res.returncode not in (0, 1, 5):
+        print(NOT_RUNNING)
+        print((res.stdout + res.stderr).strip()[-800:])
+        return
+    counts, wrong = {}, []
     for line in res.stdout.splitlines():
-        if line.startswith(("FAILED", "ERROR")):
-            kind = "✗" if line.startswith("FAILED") else "⚠ error in"
+        if line.startswith("ERROR"):            # a fixture failed: no database or no answers file
+            print(NOT_RUNNING)
+            return
+        if line.startswith("FAILED"):
             test = line.split("::")[-1].split(" ")[0].removeprefix("test_")
             hint = line.split(" - ", 1)[-1].strip() if " - " in line else ""
             hint = hint.removeprefix("AssertionError:").strip()
             hint = "" if hint.startswith("assert ") else hint
-            print(f"  {kind} {test}" + (f" — hint: {hint}" if hint else ""))
-        elif line.split(" in ")[0].rstrip().endswith(("passed", "failed", "error", "errors", "skipped",
-                                                      "deselected", "selected")):
-            summary = line.split(" in ")[0].replace(", ", " · ")
-    # pytest exit codes: 0 all passed, 1 some failed, 2-4 internal/usage error, 5 no tests
-    if res.returncode == 0:
-        print("✅ " + summary)
-    elif res.returncode == 1:
-        print("❌ " + summary)
-        if "error" in summary:
-            print("   ⚠ errors are environment problems, not wrong answers — is the database up? "
-                  "Try `docker compose up -d`, then rerun.")
-    elif res.returncode == 5:
-        print("⚠ no tests collected" + (f" for {marker!r}" if marker else ""))
+            wrong.append(f"  {LABELS.get(test, test)}" + (f": {hint}" if hint else ""))
+        for number, word in re.findall(r"(\d+) (passed|failed|skipped)", line.split(" in ")[0]):
+            counts[word] = int(number)
+    total = counts.get("passed", 0) + counts.get("failed", 0)
+    if total == 0:
+        print("No checks found for this part.")
+    elif not wrong:
+        print("1 check passed." if total == 1 else f"All {total} checks passed.")
     else:
-        print(f"⚠ autograder could not run (pytest exit code {res.returncode}) — "
-              "is the database up? Try `docker compose up -d`.")
-        print((res.stdout + res.stderr).strip()[-800:])
-    return res.returncode == 0
+        print(f"{len(wrong)} of {total} {'check' if total == 1 else 'checks'} "
+              f"{'needs' if len(wrong) == 1 else 'need'} another look:")
+        print("\n".join(wrong))
+    if counts.get("skipped"):
+        print("(Optional tasks you left blank were skipped.)")
