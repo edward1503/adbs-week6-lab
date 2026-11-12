@@ -44,6 +44,5 @@ When you are done, stop the lab with `docker compose stop`.
 |---|---|
 | "Could not run the checks" | The database is not running. Open Docker Desktop, then run `docker compose up -d`. |
 | "port is already allocated" | Another program is using port 8888, often another Jupyter. Close it and run `docker compose up -d` again. |
-| Checks fail after an optional task changed the data | Reset the database: run `docker compose down -v`, then `docker compose up -d`. |
+| Checks fail after an extra task changed the data | Reset the database: run `docker compose down -v`, then `docker compose up -d`. |
 | The download stops partway | Run `docker compose up -d --build` again. It continues where it stopped. |
-| The plan picture from `show_pev2` is blank | It needs internet. Use the text plan above it. |

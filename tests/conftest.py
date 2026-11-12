@@ -77,3 +77,22 @@ def close(student, truth, rel):
     except (TypeError, ValueError):
         return False
     return abs(student - truth) <= rel * abs(truth)
+
+
+def buffers(plan):
+    """Pages read by a plan node: shared hit + read, as `buffers=` in the notebook."""
+    return plan.get("Shared Hit Blocks", 0) + plan.get("Shared Read Blocks", 0)
+
+
+def explain_without_extended_stats(db, sql):
+    """Plan as PostgreSQL makes it before Part C adds statistics.
+
+    Drops every extended statistics object inside a transaction, explains, then rolls back,
+    so the student's database is left as it was.
+    """
+    with db.transaction():
+        for (name,) in db.execute("SELECT stxname FROM pg_statistic_ext").fetchall():
+            db.execute(f'DROP STATISTICS "{name}"')
+        plan = explain(db, sql)
+        raise psycopg.Rollback()
+    return plan
