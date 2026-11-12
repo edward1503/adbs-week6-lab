@@ -37,8 +37,8 @@ Changes to Markdown files only (README, this file) need no check.
 
 ## 4. Numbers in the text come from a run
 
-- The notebook text and the README quote measured numbers ("about 600 pages", "about 64 events",
-  "about 3 times more pages", the dry-run table). After a change to the data, to the planner settings
+- The notebook text and the README quote measured numbers ("1274 pages", "about 64 events",
+  "about 12 times fewer pages", the dry-run table). After a change to the data, to the planner settings
   in `docker-compose.yml` or to the PostgreSQL version, rerun the solution and update every
   quoted number.
 - The dry-run table in `README.md` says the date and the PostgreSQL version it was measured with.
