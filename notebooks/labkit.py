@@ -31,7 +31,8 @@ def _connect(dbname="tickets"):
 _conn = _connect()
 
 RANGE = "SELECT sum(price) FROM tickets WHERE event_id <= {n}"
-SWEEP = (10, 30, 50, 70, 100, 150, 300)      # values of n in Part A; tests/test_lab.py uses the same
+SWEEP = (10, 30, 50, 100, 150, 300)      # values of n in Part A; tests/test_lab.py uses the same.
+# No n = 70: there the plan depends on the random sample taken by ANALYZE, so it differs between laptops.
 QUERY = """SELECT sum(t.price)
 FROM tickets t
 JOIN events e ON e.id = t.event_id

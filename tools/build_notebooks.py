@@ -213,6 +213,7 @@ the same two as in the warm-up:
 From Part B, PostgreSQL believes there are 20 Jazz concerts in Hanoi. Run the full query:
 """)
 code("""
+sql("DROP STATISTICS IF EXISTS ev_stats")   # start without the Part C statistics, also when you run this again
 explain(QUERY)
 """)
 md("The first line shows the pages read. The second line shows how the tables are joined.")
@@ -439,14 +440,19 @@ The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data
 
 COLAB_SETUP = """
 # Google Colab: install PostgreSQL 17 and the lab files (about 2 minutes, once per session)
+import os, subprocess, sys
 LAB_BRANCH = "main"
-%cd /content
-!mkdir -p week6-lab
-%cd /content/week6-lab
-!curl -fsSL https://raw.githubusercontent.com/edward1503/adbs-week6-lab/{LAB_BRANCH}/colab/setup.sh -o setup.sh
-!LAB_BRANCH={LAB_BRANCH} bash setup.sh
+os.makedirs("/content/week6-lab", exist_ok=True)
+os.chdir("/content/week6-lab")
+setup = subprocess.Popen(
+    ["bash", "-c", "curl -fsSL https://raw.githubusercontent.com/edward1503/adbs-week6-lab/"
+                   f"{LAB_BRANCH}/colab/setup.sh -o setup.sh && LAB_BRANCH={LAB_BRANCH} bash setup.sh"],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+for line in setup.stdout:
+    print(line, end="")
+if setup.wait() != 0:
+    raise RuntimeError("The setup did not finish. Read the messages above, then run this cell again.")
 
-import os, sys
 os.environ["LAB_ENV"] = "colab"
 sys.path.insert(0, "/content/week6-lab/notebooks")
 from labkit import *      # the helper functions used in this lab

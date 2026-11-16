@@ -79,7 +79,7 @@ PostgreSQL 17.6, 9 November 2026 (Duc):
 
 | Task | Measured |
 |---|---|
-| A1, bitmap off | Index Scan up to 70 events, Seq Scan from 100. At 30 events: 599 pages. |
+| A1, bitmap off | Index Scan up to 50 events, Seq Scan from 100. At 30 events: 599 pages. At 70 events the plan depends on the random sample of `ANALYZE`, so the sweep leaves 70 out. |
 | B1 | est 20, actual 200 |
 | C1, C2 | Nested Loop, 16,429 pages. After `CREATE STATISTICS (mcv)`: Hash Join, 1,388 pages. |
 | Extra 1, bitmap on | Bitmap Heap Scan up to about 40% of the tickets, Seq Scan from about 60% |

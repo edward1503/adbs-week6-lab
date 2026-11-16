@@ -8,7 +8,7 @@ import pytest
 from conftest import buffers, close, explain, explain_without_extended_stats, first_scan, h, normalize
 
 RANGE = "SELECT sum(price) FROM tickets WHERE event_id <= {n}"
-SWEEP = (10, 30, 50, 70, 100, 150, 300)      # same as notebooks/labkit.py
+SWEEP = (10, 30, 50, 100, 150, 300)      # same as notebooks/labkit.py
 QUERY = """SELECT sum(t.price)
 FROM tickets t
 JOIN events e ON e.id = t.event_id
