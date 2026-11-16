@@ -22,9 +22,17 @@ This repository contains the answers, so keep it private. Students only get the 
 |---|---|
 | stop | `docker compose stop` |
 | start again | `docker compose up -d` |
-| reset the data | `docker compose down -v`, then `docker compose up -d` |
+| reset the data | `reset_database()` in a notebook cell, or `docker compose down -v`, then `docker compose up -d` |
 
 Only one copy can run at a time. Before starting a new version, run `docker compose down -v` in the old folder.
+
+### Without Docker: Google Colab
+
+Upload `notebooks/lab_colab.ipynb` to https://colab.research.google.com and run the first cell.
+`colab/setup.sh` installs PostgreSQL 17 with the same planner settings as `docker-compose.yml`, downloads the
+lab files (not the solution) from this repository on GitHub, and loads the data, in about 2 minutes.
+The Colab notebook downloads from GitHub, so it only works while the repository is public.
+To try a branch before it is merged, change `LAB_BRANCH` in the first cell.
 
 ## What students do
 
@@ -43,7 +51,8 @@ Only one copy can run at a time. Before starting a new version, run `docker comp
 | File | What it is |
 |---|---|
 | `AGENTS.md` | Rules for working in this repository. Read it first. |
-| `tools/build_notebooks.py` | The only source of both notebooks |
+| `tools/build_notebooks.py` | The only source of the notebooks: `lab.ipynb`, `lab_colab.ipynb` and the solution |
+| `colab/setup.sh` | Sets up PostgreSQL and the lab files on Google Colab |
 | `notebooks/labkit.py` | Helpers used in the notebook, such as `explain()` and `check()` |
 | `tests/test_lab.py` | The autograder |
 | `solution/` | Solution notebook and reference answers |
@@ -90,3 +99,7 @@ PostgreSQL 17.6, 9 November 2026 (Duc):
 
 Windows laptop, Docker Desktop 4.99.0, 12 November 2026 (Khai): the student zip starts in about 2 minutes and uses 3.2 GB of disk.
 The solution notebook passes all checks with the same numbers as above (histogram estimate 49,030).
+
+Ubuntu 22.04 container standing in for Colab, PostgreSQL 17 from the PostgreSQL apt repository, 16 November 2026 (Duc):
+`colab/setup.sh` finishes in under a minute, and the solution notebook passes all checks with the same numbers
+as the Docker run. Not yet tried on Colab itself.

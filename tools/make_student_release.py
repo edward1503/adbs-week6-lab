@@ -19,6 +19,7 @@ FILES = [
     "jupyter/Dockerfile",
     "data/01_init.sql",
     "notebooks/lab.ipynb",
+    "notebooks/lab_colab.ipynb",      # the same lab for Google Colab (no Docker)
     "notebooks/labkit.py",
     "tests/conftest.py",
     "tests/test_lab.py",
@@ -45,9 +46,10 @@ blank = {k: ([None] * len(v) if isinstance(v, list) else None) for k, v in answe
 (OUT / "answers.json").write_text(json.dumps(blank, indent=2), encoding="utf-8")
 
 # 4. leak check
-nb = json.loads((OUT / "notebooks" / "lab.ipynb").read_text(encoding="utf-8"))
-if any(c.get("outputs") for c in nb["cells"]):
-    sys.exit("lab.ipynb has outputs — rebuild it")
+for name in ("lab.ipynb", "lab_colab.ipynb"):
+    nb = json.loads((OUT / "notebooks" / name).read_text(encoding="utf-8"))
+    if any(c.get("outputs") for c in nb["cells"]):
+        sys.exit(f"{name} has outputs — rebuild it")
 for f in OUT.rglob("*"):
     if f.is_file():
         text = f.read_text(encoding="utf-8", errors="ignore")
