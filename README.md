@@ -6,6 +6,13 @@ find out why one of its estimates is wrong, and fix it.
 
 This repository contains the answers, so keep it private. Students only get the student zip.
 
+The lab comes in two versions with the same tasks, numbers and autograder. Students pick one:
+
+| Version | Notebook | Runs on | Needs |
+|---|---|---|---|
+| Docker | `notebooks/lab.ipynb` | the student's laptop | Docker Desktop, about 3 GB of disk |
+| **Colab, without Docker** | `notebooks/lab_colab.ipynb` | Google Colab | a browser and a Google account |
+
 ## Try the lab
 
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (on Windows: AMD64), open it,
@@ -102,4 +109,7 @@ The solution notebook passes all checks with the same numbers as above (histogra
 
 Ubuntu 22.04 container standing in for Colab, PostgreSQL 17 from the PostgreSQL apt repository, 16 November 2026 (Duc):
 `colab/setup.sh` finishes in under a minute, and the solution notebook passes all checks with the same numbers
-as the Docker run. Not yet tried on Colab itself.
+as the Docker run.
+
+Google Colab, 16 November 2026 (Duc): `lab_colab.ipynb` from the `colab-variant` branch set up PostgreSQL,
+passed the setup check, and the last cell downloaded `answers.json`.
