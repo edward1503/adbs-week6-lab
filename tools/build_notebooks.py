@@ -1,4 +1,5 @@
-"""Build notebooks/lab.ipynb (student) and solution/solution.ipynb from ONE source.
+"""Build notebooks/lab.ipynb (student, Docker), notebooks/lab_colab.ipynb (student, Google Colab)
+and solution/solution.ipynb from ONE source.
 
     uv run --no-project --with nbformat python tools/build_notebooks.py
 
@@ -393,8 +394,7 @@ md("""
 Run `sql("CLUSTER tickets USING idx_tickets_event")`, then `sql("ANALYZE tickets")`, then `scan_sweep()` again.
 What changes, and why?
 
-This changes the data. Afterwards, reset the database in your terminal with
-`docker compose down -v`, then `docker compose up -d`.
+This changes the data. Afterwards, put the data back with `reset_database()`.
 """)
 code('check("extras")')
 
@@ -419,30 +419,80 @@ Pick one, write down what you expect, then try it:
 3. Create an index on `tickets(event_id, price)` and run `scan_sweep()` again. Which new scan appears,
    and why does it read so few pages?
 
-Reset the database afterwards: `docker compose down -v`, then `docker compose up -d`.
+Put the data back afterwards with `reset_database()`.
 
 Please fill in the short feedback form on Canvas before you leave.
 """)
 
 
+# ===================================================================== Colab variant
+COLAB_INTRO = """
+## Running on Google Colab
+
+This copy of the lab runs on Google Colab, so you need no Docker and nothing on your laptop.
+The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data. It takes about 2 minutes.
+
+- Run it again whenever Colab starts a new session (for example after "Runtime > Disconnect and delete runtime",
+  or when you come back the next day). Your answers are kept as long as the session lives.
+- Before you close the tab, run the last cell of the notebook to download `answers.json`. That is the file you hand in.
+"""
+
+COLAB_SETUP = """
+# Google Colab: install PostgreSQL 17 and the lab files (about 2 minutes, once per session)
+LAB_BRANCH = "main"
+%cd /content
+!mkdir -p week6-lab
+%cd /content/week6-lab
+!curl -fsSL https://raw.githubusercontent.com/edward1503/adbs-week6-lab/{LAB_BRANCH}/colab/setup.sh -o setup.sh
+!LAB_BRANCH={LAB_BRANCH} bash setup.sh
+
+import os, sys
+os.environ["LAB_ENV"] = "colab"
+sys.path.insert(0, "/content/week6-lab/notebooks")
+from labkit import *      # the helper functions used in this lab
+check("setup")
+"""
+
+COLAB_HANDIN_MD = """
+## Hand in
+
+Run the next cell to download `answers.json`, then upload it on Canvas.
+"""
+
+COLAB_HANDIN = """
+from google.colab import files
+files.download("/content/week6-lab/answers.json")
+"""
+
+
 # =====================================================================
-def build(solution: bool, path: Path):
+def build(solution: bool, path: Path, colab: bool = False):
     nb = nbf.v4.new_notebook()
     nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
-    for i, cell in enumerate(CELLS):
+    cells = []
+    for cell in CELLS:
         kind = cell[0]
         if kind == "md":
-            new = nbf.v4.new_markdown_cell(cell[1])
+            cells.append(nbf.v4.new_markdown_cell(cell[1]))
         elif kind == "code":
             src = cell[1]
-            if solution and src.startswith("from labkit"):
-                src = ("import os, sys; sys.path.insert(0, '../notebooks')\n"
-                       "os.environ['ANSWERS'] = os.path.abspath('answers_solution.json')\n" + src)
-            new = nbf.v4.new_code_cell(src)
+            if src.startswith("from labkit"):
+                if colab:
+                    cells.append(nbf.v4.new_markdown_cell(COLAB_INTRO.strip()))
+                    src = COLAB_SETUP.strip()
+                elif solution:
+                    src = ("import os, sys; sys.path.insert(0, '../notebooks')\n"
+                           "os.environ['ANSWERS'] = os.path.abspath('answers_solution.json')\n" + src)
+            cells.append(nbf.v4.new_code_cell(src))
         else:
-            new = nbf.v4.new_code_cell(cell[2] if solution else cell[1])
+            cells.append(nbf.v4.new_code_cell(cell[2] if solution else cell[1]))
+    if colab:
+        cells += [nbf.v4.new_markdown_cell(COLAB_HANDIN_MD.strip()), nbf.v4.new_code_cell(COLAB_HANDIN.strip())]
+    for i, new in enumerate(cells):
         new["id"] = f"cell-{i:03d}"          # fixed ids, so a rebuild without changes gives the same file
-        nb.cells.append(new)
+    nb.cells = cells
+    if colab:
+        nb.metadata["colab"] = {"provenance": [], "toc_visible": True}
     path.parent.mkdir(parents=True, exist_ok=True)
     nbf.write(nb, path)
     print("wrote", path.relative_to(ROOT))
@@ -450,3 +500,4 @@ def build(solution: bool, path: Path):
 
 build(False, ROOT / "notebooks" / "lab.ipynb")
 build(True, ROOT / "solution" / "solution.ipynb")
+build(False, ROOT / "notebooks" / "lab_colab.ipynb", colab=True)
