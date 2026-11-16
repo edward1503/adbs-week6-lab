@@ -48,6 +48,7 @@ A website that sells concert tickets. The manager asks: how much did Campus cust
 
 Replace each `None` with your answer and run the cell (click it, then press Shift+Enter).
 At the end of each part, run the `check(...)` cell. It marks your answers and gives hints.
+To see every task and which ones are done, run `progress()` in any cell.
 
 | Minutes | Part |
 |---|---|
@@ -281,6 +282,9 @@ save(exit_max_events=exit_max_events)
 """)
 code("""
 check()    # checks the whole lab; extra tasks you left blank are skipped
+""")
+code("""
+progress()    # every task of the lab and its status
 """)
 
 # ===================================================================== Extras
