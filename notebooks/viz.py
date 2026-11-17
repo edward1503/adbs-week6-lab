@@ -35,11 +35,15 @@ def pages(max_n=200):
     Index Scan follows the index: one page per ticket, in index order, often the same page again later.
     Bitmap scan sorts the pages first and reads each one once. Seq Scan reads every page once.
     """
-    npages = int(labkit.sql("SELECT relpages FROM pg_class WHERE relname = 'tickets'").relpages[0])
+    size = labkit.sql("""SELECT relname, relpages FROM pg_class
+                         WHERE relname IN ('tickets', 'idx_tickets_event')""").set_index("relname").relpages
+    npages, index_pages = int(size["tickets"]), int(size["idx_tickets_event"])
+    # break-even from the lecture's formula (lecture 18, slide 6), as in the notebook text: about 64 events
+    break_even = round(npages / (index_pages + 200_000) * 10_000)
     rows = labkit.sql(f"""SELECT event_id, (ctid::text::point)[0]::int AS page
                           FROM tickets WHERE event_id <= {int(max_n)}
                           ORDER BY event_id, ctid""")      # the order an index scan visits them
-    data = {"npages": npages, "event": rows.event_id.tolist(), "page": rows.page.tolist(), "max": int(max_n)}
+    data = {"npages": npages, "be": break_even, "event": rows.event_id.tolist(), "page": rows.page.tolist(), "max": int(max_n)}
     body = """
 <div class="row"><b class="big">Which pages does each scan read?</b>
   <span class="muted">Each square is one page (8 KB) of the tickets table.</span></div>
@@ -97,7 +101,7 @@ function chart() {
   const ymax = 20 * D.max * 1.05;
   const X = k => L + (k / D.max) * (W - L - 8), Y = v => H - B - Math.min(v, ymax) / ymax * (H - B - 8);
   const line = (vals, col) => `<polyline fill="none" stroke="${col}" stroke-width="2" points="${ns.map((k, i) => X(k) + ',' + Y(vals[i])).join(' ')}"/>`;
-  let be = null; for (let k = 1; k <= D.max; k++) if (order('index', k).length > D.npages) { be = k - 1; break; }
+  const be = D.be;      // (NPages(I) + NTuples(R)) × sel = NPages(R), in events
   const cur = {index: order('index', n).length, bitmap: order('bitmap', n).length, seq: D.npages}[mode];
   svg.innerHTML =
     `<line x1="${L}" y1="${H - B}" x2="${W}" y2="${H - B}" stroke="#999"/><line x1="${L}" y1="8" x2="${L}" y2="${H - B}" stroke="#999"/>` +
