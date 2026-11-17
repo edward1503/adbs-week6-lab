@@ -121,8 +121,9 @@ a1_pages_per_ticket = round(float(sweep.loc[30, "pages read"]) / 600, 2)
 save(a1_first_seq_scan_n=a1_first_seq_scan_n, a1_pages_per_ticket=a1_pages_per_ticket)
 """)
 md("""
-About one page per ticket. The tickets are not stored in `event_id` order, so the index is unclustered
-and each matching ticket sits on a different page. A Seq Scan always reads the whole table, 1274 pages.
+About one page per ticket. The tickets are not stored in `event_id` order, so the index is unclustered:
+the matching tickets are spread over the whole table, and the index scan reads one page for each of them,
+sometimes a page it has already read (lecture 16, slide 24). A Seq Scan always reads the whole table, 1274 pages.
 So the index stops paying off at about 1274 matching tickets, or about 64 events. That is what the
 lecture's formula gives (lecture 18, slide 6). PostgreSQL switches a little later, because its own
 cost model is more detailed than the lecture's.
@@ -152,7 +153,7 @@ code('check("task_a")')
 md("""
 ## Part B: Why the estimate is wrong (10 minutes, lecture 17)
 
-Before it runs a query, PostgreSQL estimates how many rows each step returns. It uses two rules from the lecture:
+Before it runs a query, PostgreSQL estimates how many rows each step returns. The lecture gives two rules for this:
 
 - One filter: sel(A = c) = 1 / NKeys(A), where NKeys is the number of distinct values in column A
   and sel is the fraction of rows that pass.
@@ -188,7 +189,9 @@ b1_assumption = "independence: every Jazz concert is in Hanoi"
 save(b1_actual=b1_actual, b1_assumption=b1_assumption)
 """)
 md("""
-PostgreSQL makes the same estimate as you: 20. But in this data every Jazz concert is in Hanoi.
+PostgreSQL makes the same estimate as you: 20. (PostgreSQL keeps how often each city and each genre occurs,
+rather than using 1 / NKeys. Here every city and every genre is equally common, so the result is the same.)
+But in this data every Jazz concert is in Hanoi.
 Once you know a concert is Jazz, you know its city, so the two filters are not independent,
 and the estimate is 10 times too small.
 """)
@@ -248,6 +251,10 @@ save(c2_join=c2_join, c2_pages=c2_pages)
 md("""
 Same query, same data, and about 12 times fewer pages. Only the estimate changed.
 With a better estimate, PostgreSQL uses hash joins, which read each table once.
+
+Most of the pages in the first plan come from the second join. Expecting 20 concerts, PostgreSQL expected
+400 tickets, so it looked up the buyer of each ticket in the index on `buyers`. There were 4,000 tickets,
+so it made 4,000 lookups, about 12,000 pages. A wrong estimate early in a plan grows with every join.
 """)
 code('check("task_c")')
 
