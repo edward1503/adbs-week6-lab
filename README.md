@@ -63,6 +63,8 @@ branch (replace `main` in the button's link) and set `LAB_BRANCH` in the first c
 | `AGENTS.md` | Rules for working in this repository. Read it first. |
 | `tools/build_notebooks.py` | The only source of the notebooks: `lab.ipynb`, `lab_colab.ipynb` and the solution |
 | `colab/setup.sh` | Sets up PostgreSQL and the lab files on Google Colab |
+| `notebooks/lab_visual.ipynb` | A copy of `lab.ipynb` with four "See it" pictures (after A1, B1, C2 and Extra 3), for demos and for students who want to see the scans and the search. The other notebooks do not change. |
+| `notebooks/viz.py` | The pictures: pages each scan reads, city × genre estimate vs actual, the two plans side by side, a System R search step by step |
 | `notebooks/labkit.py` | Helpers used in the notebook, such as `explain()` and `check()` |
 | `tests/test_lab.py` | The autograder |
 | `solution/` | Solution notebook and reference answers |

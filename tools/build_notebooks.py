@@ -1,5 +1,5 @@
 """Build notebooks/lab.ipynb (student, Docker), notebooks/lab_colab.ipynb (student, Google Colab)
-and solution/solution.ipynb from ONE source.
+solution/solution.ipynb and notebooks/lab_visual.ipynb (the lab with pictures) from ONE source.
 
     uv run --no-project --with nbformat python tools/build_notebooks.py
 
@@ -16,6 +16,7 @@ CELLS = []
 def md(s): CELLS.append(("md", s.strip()))
 def code(s): CELLS.append(("code", s.strip()))
 def ans(student, solution): CELLS.append(("ans", student.strip(), solution.strip()))
+def see(text, src): CELLS.append(("see", text.strip(), src.strip()))   # only in lab_visual.ipynb
 
 
 # =====================================================================
@@ -122,6 +123,13 @@ a1_first_seq_scan_n = int(sweep.index[sweep.scan == "Seq Scan"][0])
 a1_pages_per_ticket = round(float(sweep.loc[30, "pages read"]) / 600, 2)
 save(a1_first_seq_scan_n=a1_first_seq_scan_n, a1_pages_per_ticket=a1_pages_per_ticket)
 """)
+see("""
+**See it.** Move the slider to change n, switch between the scans, and press Play to watch the pages being read.
+Light blue is a page read once, darker blue a page read again.
+""", """
+from viz import *
+pages()
+""")
 md("""
 About one page per ticket. The tickets are not stored in `event_id` order, so the index is unclustered:
 the matching tickets are spread over the whole table, and the index scan reads one page for each of them,
@@ -197,6 +205,11 @@ But in this data every Jazz concert is in Hanoi.
 Once you know a concert is Jazz, you know its city, so the two filters are not independent,
 and the estimate is 10 times too small.
 """)
+see("""
+**See it.** Each square is a city and a genre. Switch between what PostgreSQL assumes and what is in the table.
+""", """
+city_genre()
+""")
 code('check("task_b")')
 
 # ===================================================================== C
@@ -258,6 +271,12 @@ With a better estimate, PostgreSQL uses hash joins, which read each table once.
 Most of the pages in the first plan come from the second join. Expecting 20 concerts, PostgreSQL expected
 400 tickets, so it looked up the buyer of each ticket in the index on `buyers`. There were 4,000 tickets,
 so it made 4,000 lookups, about 12,000 pages. A wrong estimate early in a plan grows with every join.
+""")
+see("""
+**See it.** The two plans for the full query side by side. Look for the red box: that is where the estimate went wrong.
+This cell does not change your database.
+""", """
+plans()
 """)
 code('check("task_c")')
 
@@ -392,6 +411,11 @@ opt_chosen_plan = min(estimated, key=estimated.get)          # plan 1: 554 again
 opt_chosen_plan_actual_cost = opt_events_nl_actual + 51      # 4514
 save(opt_chosen_plan=opt_chosen_plan, opt_chosen_plan_actual_cost=opt_chosen_plan_actual_cost)
 """)
+see("""
+**See it.** The same search, one pass at a time. Switch between the estimated 20 and the actual 200 concerts.
+""", """
+system_r()
+""")
 md("""
 ### Extra 4. A clustered index
 
@@ -429,6 +453,12 @@ Put the data back afterwards with `reset_database()`.
 Please fill in the short feedback form on Canvas before you leave.
 """)
 
+
+# ===================================================================== Visual copy
+VISUAL_INTRO = """
+**Visual copy.** This is the same lab as `lab.ipynb`, with a "See it" picture after A1, B1, C2 and Extra 3.
+The pictures read the lab database but never change it. They need no internet.
+"""
 
 # ===================================================================== Colab variant
 COLAB_INTRO = """
@@ -476,7 +506,7 @@ files.download("/content/week6-lab/answers.json")
 
 
 # =====================================================================
-def build(solution: bool, path: Path, colab: bool = False):
+def build(solution: bool, path: Path, colab: bool = False, visual: bool = False):
     nb = nbf.v4.new_notebook()
     nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
     cells = []
@@ -494,8 +524,13 @@ def build(solution: bool, path: Path, colab: bool = False):
                     src = ("import os, sys; sys.path.insert(0, '../notebooks')\n"
                            "os.environ['ANSWERS'] = os.path.abspath('answers_solution.json')\n" + src)
             cells.append(nbf.v4.new_code_cell(src))
+        elif kind == "see":
+            if visual:
+                cells += [nbf.v4.new_markdown_cell(cell[1]), nbf.v4.new_code_cell(cell[2])]
         else:
             cells.append(nbf.v4.new_code_cell(cell[2] if solution else cell[1]))
+    if visual:
+        cells.insert(1, nbf.v4.new_markdown_cell(VISUAL_INTRO.strip()))
     if colab:
         cells += [nbf.v4.new_markdown_cell(COLAB_HANDIN_MD.strip()), nbf.v4.new_code_cell(COLAB_HANDIN.strip())]
     for i, new in enumerate(cells):
@@ -511,3 +546,4 @@ def build(solution: bool, path: Path, colab: bool = False):
 build(False, ROOT / "notebooks" / "lab.ipynb")
 build(True, ROOT / "solution" / "solution.ipynb")
 build(False, ROOT / "notebooks" / "lab_colab.ipynb", colab=True)
+build(False, ROOT / "notebooks" / "lab_visual.ipynb", visual=True)
