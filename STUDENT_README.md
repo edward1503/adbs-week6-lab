@@ -46,8 +46,13 @@ When you are done, stop the lab with `docker compose stop`.
 
 ## Option 2: Google Colab (no Docker)
 
-1. Go to https://colab.research.google.com and sign in with a Google account.
-2. Choose File, then Upload notebook, and pick `notebooks/lab_colab.ipynb` from this folder.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/edward1503/adbs-week6-lab/blob/main/notebooks/lab_colab.ipynb)
+
+1. Click the button above and sign in with a Google account. If Colab warns that the notebook was not
+   written by Google, choose "Run anyway".
+   (Or go to https://colab.research.google.com, choose File, then Upload notebook, and pick
+   `notebooks/lab_colab.ipynb` from this folder.)
+2. Choose File, then "Save a copy in Drive", so that your work is kept in your own Google Drive.
 3. Run the first code cell. It installs PostgreSQL on the Colab machine and loads the data, which takes
    about 2 minutes. It should end with "1 check passed".
 4. Before the lab, do steps 1 to 3 once and post a screenshot in the Week 6 setup thread on Canvas by Sunday 29 November.

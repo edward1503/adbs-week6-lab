@@ -35,11 +35,14 @@ Only one copy can run at a time. Before starting a new version, run `docker comp
 
 ### Without Docker: Google Colab
 
-Upload `notebooks/lab_colab.ipynb` to https://colab.research.google.com and run the first cell.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/edward1503/adbs-week6-lab/blob/main/notebooks/lab_colab.ipynb)
+
+Click the button, or upload `notebooks/lab_colab.ipynb` to https://colab.research.google.com, then run the first cell.
 `colab/setup.sh` installs PostgreSQL 17 with the same planner settings as `docker-compose.yml`, downloads the
 lab files (not the solution) from this repository on GitHub, and loads the data, in about 2 minutes.
 The Colab notebook downloads from GitHub, so it only works while the repository is public.
-To try a branch before it is merged, change `LAB_BRANCH` in the first cell.
+The button opens the notebook on `main`. To try a branch before it is merged, open the notebook from that
+branch (replace `main` in the button's link) and set `LAB_BRANCH` in the first cell to the same branch.
 
 ## What students do
 
