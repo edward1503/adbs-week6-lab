@@ -213,5 +213,115 @@ def check(part=None):
         print(f"{len(wrong)} of {total} {'check' if total == 1 else 'checks'} "
               f"{'needs' if len(wrong) == 1 else 'need'} another look:")
         print("\n".join(wrong))
+        print("Run progress() to see every task and how far you are.")
     if counts.get("skipped"):
         print("(Extra tasks you left blank were skipped.)")
+
+
+# ------------------------------------------------------------------ progress table
+# (part, task shown to students, test name, answer names, required)
+TASKS = [
+    ("Setup", "Setup", "setup", (), True),
+    ("A", "A1. When does PostgreSQL stop using the index?", "a1",
+     ("a1_first_seq_scan_n", "a1_pages_per_ticket"), True),
+    ("A", "A2. An index on two columns", "a2", ("a2_matches",), True),
+    ("B", "B1. Jazz concerts in Hanoi", "b1", ("b1_estimate", "b1_actual", "b1_assumption"), True),
+    ("C", "C1. The plan PostgreSQL picks", "c1", ("c1_join", "c1_pages"), True),
+    ("C", "C2. Better statistics", "c2", ("c2_join", "c2_pages"), True),
+    ("Exit", "Exit ticket", "exit_ticket", ("exit_max_events",), True),
+    ("Extra", "Extra 2. Histograms", "extra_histogram", ("hist_my_estimate", "hist_postgres_estimate"), False),
+    ("Extra", "Extra 3. Be the optimizer", "extra_optimizer",
+     ("opt_events_nl_estimated", "opt_events_nl_actual", "opt_events_hj",
+      "opt_chosen_plan", "opt_chosen_plan_actual_cost"), False),
+]
+# status -> (text, background, text colour)
+_STATUS = {
+    "done": ("Done", "#d3f4dd", "#145c2c"),
+    "again": ("Check again", "#fde2e1", "#8a1c17"),
+    "partly": ("In progress", "#fff1cc", "#7a5300"),
+    "todo": ("Not started", "#eceef1", "#3d4450"),
+    "optional": ("Optional", "#eceef1", "#6b7280"),
+    "error": ("Could not check", "#fde2e1", "#8a1c17"),
+}
+
+
+def _filled(value):
+    return any(v is not None for v in value) if isinstance(value, list) else value is not None
+
+
+def progress():
+    """Show every task of the lab with its status: done, check again, in progress or not started."""
+    import tempfile
+    import xml.etree.ElementTree as ET
+
+    report = Path(tempfile.gettempdir()) / "week6_progress.xml"
+    cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no", "--color=no", "-p", "no:cacheprovider",
+           "-W", "ignore", f"--junitxml={report}"]
+    env = {**os.environ, "ANSWERS": str(ANSWERS), "PYTHONIOENCODING": "utf-8"}
+    res = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
+    if res.returncode not in (0, 1) or not report.exists():
+        print(NOT_RUNNING)
+        return
+    results = {}
+    for case in ET.parse(report).getroot().iter("testcase"):
+        name = case.get("name").removeprefix("test_")
+        bad = case.find("failure")
+        if case.find("error") is not None:
+            results[name] = ("error", "")
+        elif case.find("skipped") is not None:
+            results[name] = ("skipped", "")
+        elif bad is not None:
+            msg = (bad.get("message") or "").removeprefix("AssertionError:").strip().splitlines()
+            hint = msg[0].strip() if msg and not msg[0].startswith("assert ") else ""
+            results[name] = ("failed", hint)
+        else:
+            results[name] = ("passed", "")
+    report.unlink(missing_ok=True)
+    if any(outcome == "error" for outcome, _ in results.values()):
+        print(NOT_RUNNING)
+    answers = json.loads(ANSWERS.read_text(encoding="utf-8")) if ANSWERS.exists() else {}
+
+    rows, done, required = [], 0, 0
+    for part, title, test, keys, needed in TASKS:
+        outcome, hint = results.get(test, ("error", ""))
+        filled = [_filled(answers.get(k)) for k in keys]
+        if outcome == "error":
+            status = "error"
+        elif outcome == "passed":
+            status = "done"
+        elif keys and not any(filled):
+            status = "todo" if needed else "optional"
+        elif outcome == "skipped":
+            status = "optional"
+        else:
+            status = "again" if all(filled) else "partly"
+        if needed:
+            required += 1
+            done += status == "done"
+        rows.append((part, title, status, hint if status in ("again", "partly") else ""))
+
+    _show_progress(rows, done, required)
+
+
+def _show_progress(rows, done, required):
+    pct = round(100 * done / required) if required else 0
+    cells = []
+    for part, title, status, hint in rows:
+        text, bg, fg = _STATUS[status]
+        badge = (f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:10px;'
+                 f'font-size:12px;white-space:nowrap">{text}</span>')
+        cells.append(f"<tr><td style='text-align:left;vertical-align:top;padding:4px 10px;color:#6b7280'>{html.escape(part)}</td>"
+                     f"<td style='text-align:left;vertical-align:top;padding:4px 10px'>{html.escape(title)}</td>"
+                     f"<td style='text-align:left;vertical-align:top;padding:4px 10px'>{badge}</td>"
+                     f"<td style='text-align:left;vertical-align:top;padding:4px 10px;font-size:12px;color:#6b7280'>{html.escape(hint)}</td></tr>")
+    page = f"""<div style="font-family:system-ui,sans-serif;font-size:14px;max-width:900px">
+<div style="margin:4px 0 6px"><b>{done} of {required}</b> required tasks done</div>
+<div style="height:8px;background:#eceef1;border-radius:4px;margin-bottom:10px">
+  <div style="height:8px;width:{pct}%;background:#2f9e57;border-radius:4px"></div></div>
+<table style="border-collapse:collapse">
+<tr style="text-align:left;border-bottom:1px solid #d0d4da"><th style="text-align:left;padding:4px 10px">Part</th>
+<th style="text-align:left;padding:4px 10px">Task</th><th style="text-align:left;padding:4px 10px">Status</th><th style="text-align:left;padding:4px 10px">Hint</th></tr>
+{''.join(cells)}</table></div>"""
+    lines = [f"{done} of {required} required tasks done"] + [
+        f"  {title}: {_STATUS[status][0]}" + (f"  ({hint})" if hint else "") for _, title, status, hint in rows]
+    display({"text/html": page, "text/plain": "\n".join(lines)}, raw=True)
