@@ -17,14 +17,22 @@ from IPython.display import HTML, display
 ROOT = Path(__file__).resolve().parent.parent
 ANSWERS = Path(os.getenv("ANSWERS", ROOT / "answers.json"))
 
-_conn = psycopg.connect(
-    host=os.getenv("PGHOST", "localhost"),
-    port=int(os.getenv("PGPORT", "55432")),
-    user="lab", password="lab", dbname="tickets", autocommit=True,
-)
+COLAB = os.getenv("LAB_ENV") == "colab"      # set by the setup cell of the Colab notebook
+
+
+def _connect(dbname="tickets"):
+    return psycopg.connect(
+        host=os.getenv("PGHOST", "localhost"),
+        port=int(os.getenv("PGPORT", "55432")),
+        user="lab", password="lab", dbname=dbname, autocommit=True,
+    )
+
+
+_conn = _connect()
 
 RANGE = "SELECT sum(price) FROM tickets WHERE event_id <= {n}"
-SWEEP = (10, 30, 50, 70, 100, 150, 300)      # values of n in Part A; tests/test_lab.py uses the same
+SWEEP = (10, 30, 50, 100, 150, 300)      # values of n in Part A; tests/test_lab.py uses the same.
+# No n = 70: there the plan depends on the random sample taken by ANALYZE, so it differs between laptops.
 QUERY = """SELECT sum(t.price)
 FROM tickets t
 JOIN events e ON e.id = t.event_id
@@ -42,6 +50,22 @@ def sql(query):
             return None
         cols = [c.name for c in cur.description]
         return pd.DataFrame(cur.fetchall(), columns=cols)
+
+
+def reset_database():
+    """Rebuild the lab data from data/01_init.sql (under a minute). Your answers are kept."""
+    global _conn
+    _conn.close()
+    with _connect("postgres") as admin:
+        admin.execute("DROP DATABASE IF EXISTS tickets WITH (FORCE)")
+        admin.execute("CREATE DATABASE tickets OWNER lab")
+    _conn = _connect()
+    script = (ROOT / "data" / "01_init.sql").read_text(encoding="utf-8")
+    for stmt in re.split(r";\s*\n", script):      # one statement at a time: VACUUM cannot run in a batch
+        body = "\n".join(l for l in stmt.splitlines() if not l.strip().startswith("--")).strip()
+        if body:
+            _conn.execute(body)
+    print("The database is back to its starting state.")
 
 
 class Plan:
@@ -144,9 +168,10 @@ MARKERS = ("setup", "task_a", "task_b", "task_c", "exit", "extras")
 # test name (without "test_") -> task name shown to students
 LABELS = {"setup": "Setup", "a1": "A1", "a2": "A2", "b1": "B1", "c1": "C1", "c2": "C2",
           "exit_ticket": "Exit ticket", "extra_histogram": "Extra 2", "extra_optimizer": "Extra 3"}
-NOT_RUNNING = ("Could not run the checks. Is the database running?\n"
-               "Start Docker Desktop, then run this in your terminal:  docker compose up -d\n"
-               "Then run this cell again.")
+NOT_RUNNING = "Could not run the checks. Is the database running?\n" + (
+    "Run the setup cell at the top of the notebook again, then run this cell again." if COLAB else
+    "Start Docker Desktop, then run this in your terminal:  docker compose up -d\n"
+    "Then run this cell again.")
 
 
 def check(part=None):
