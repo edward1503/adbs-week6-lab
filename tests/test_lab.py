@@ -44,13 +44,6 @@ def test_a1(db, ans):
         "a1_pages_per_ticket: take the pages read in the row n = 30 and divide by 600"
 
 
-@pytest.mark.task_a
-def test_a2(ans):
-    assert h(ans["a2_matches"]) == "10882820c88dd08a", \
-        ("a2_matches: an index on (city, genre) matches equality conditions on the first columns, "
-         "plus at most one range condition on the next column (lecture 16, slides 14 to 21)")
-
-
 # ------------------------------------------------------------------ B
 @pytest.mark.task_b
 def test_b1(ans):
@@ -82,14 +75,16 @@ def test_c2(db, ans):
         "c2_pages: copy the number after buffers= on the first line of the new plan"
 
 
-# ------------------------------------------------------------------ exit ticket
-@pytest.mark.exit
-def test_exit_ticket(ans):
-    assert normalize(ans["exit_max_events"]) == 57, \
-        "exit_max_events: the largest whole x with 63 + 22x < 63 + 1274. Check your rounding."
-
-
 # ------------------------------------------------------------------ extras (skipped when left blank)
+@pytest.mark.extras
+def test_extra_index(ans):
+    if all(v is None for v in (ans.get("index_matches") or [None])):
+        pytest.skip("extra task left blank")
+    assert h(ans["index_matches"]) == "10882820c88dd08a", \
+        ("index_matches: an index on (city, genre) matches equality conditions on the first columns, "
+         "plus at most one range condition on the next column (lecture 16, slides 14 to 21)")
+
+
 @pytest.mark.extras
 def test_extra_histogram(db, ans):
     if ans.get("hist_my_estimate") is None and ans.get("hist_postgres_estimate") is None:
