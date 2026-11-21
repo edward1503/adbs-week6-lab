@@ -1,13 +1,6 @@
 {
-  "warmup_vote": null,
   "a1_first_seq_scan_n": null,
   "a1_pages_per_ticket": null,
-  "a2_matches": [
-    null,
-    null,
-    null,
-    null
-  ],
   "b1_estimate": null,
   "b1_actual": null,
   "b1_assumption": null,
@@ -15,7 +8,12 @@
   "c1_pages": null,
   "c2_join": null,
   "c2_pages": null,
-  "exit_max_events": null,
+  "index_matches": [
+    null,
+    null,
+    null,
+    null
+  ],
   "hist_my_estimate": null,
   "hist_postgres_estimate": null,
   "opt_buyers_nl": null,
