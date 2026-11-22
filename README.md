@@ -1,8 +1,9 @@
 # Week 6 Lab: Access Methods, Cost Estimation and Plan Search
 
-A 60-minute lab for COMP5330 Week 6 (Monday 30 November 2026), based on
-[Edinburgh ADBS week 6](https://opencourse.inf.ed.ac.uk/adbs/week-6). Students watch PostgreSQL choose a plan,
-find out why one of its estimates is wrong, and fix it.
+The quiz and lab for COMP5330 Week 6 (Friday 4 December 2026), based on
+[Edinburgh ADBS week 6](https://opencourse.inf.ed.ac.uk/adbs/week-6). After the lecture: an 8-minute quiz,
+then a 22-minute lab that we guide on screen. Students watch PostgreSQL choose a plan, find out why one of
+its estimates is wrong, and fix it.
 
 This repository contains the answers, so keep it private. Students only get the student zip.
 
@@ -44,17 +45,19 @@ The Colab notebook downloads from GitHub, so it only works while the repository 
 The button opens the notebook on `main`. To try a branch before it is merged, open the notebook from that
 branch (replace `main` in the button's link) and set `LAB_BRANCH` in the first cell to the same branch.
 
-## What students do
+## The session (30 minutes after the lecture)
 
-| Minutes | Part |
+| Minutes | What |
 |---|---|
-| 0–5 | Warm-up: index lookups or read all tickets? |
-| 5–17 | A. When does PostgreSQL stop using the index? Which filters does a two-column index match? |
-| 17–27 | B. Why is the estimate wrong? 20 Jazz concerts in Hanoi expected, 200 actual |
-| 27–40 | C. The full query: nested loops and 16,429 pages, then hash joins and 1,388 pages after `CREATE STATISTICS` |
-| 40–45 | Exit ticket |
-| 45–55 | Extra tasks: bitmap scan, histograms, System R by hand, clustered index |
-| 55–60 | Wrap-up with the class |
+| 0–8 | Quiz on Kahoot: includes the two-column index rule and when a nested loop beats a hash join |
+| 8–10 | Lab setup: students open the Colab notebook and run its setup cell while we introduce the lab |
+| 10–16 | Lab A. When does PostgreSQL stop using the index? |
+| 16–21 | Lab B. Why is the estimate wrong? 20 Jazz concerts in Hanoi expected, 200 actual |
+| 21–28 | Lab C. The full query: nested loops and 16,429 pages, then hash joins and 1,388 pages after `CREATE STATISTICS` |
+| 28–30 | Wrap-up |
+
+After class: five extra tasks (two-column index, bitmap scan, histograms, System R by hand, clustered index)
+and three open-ended ideas.
 
 ## Files
 

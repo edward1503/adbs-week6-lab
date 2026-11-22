@@ -22,44 +22,42 @@ def ans(student, solution): CELLS.append(("ans", student.strip(), solution.strip
 md("""
 # Week 6 Lab: How PostgreSQL Chooses a Plan
 
-Work in pairs. The lab takes 60 minutes.
+In class we do this lab together in about 20 minutes: follow the screen, run each cell when we do,
+and write down what you see.
 
 A query optimizer decides how to run a query: whether to use an index, and how to join the tables.
-It estimates the cost of each option and picks the cheapest. In this lab you watch PostgreSQL make
-these choices, find out why one of its estimates is wrong, and fix it.
+It estimates the cost of each option and picks the cheapest. Today you watch PostgreSQL make these choices,
+find out why one of its estimates is wrong, and fix it.
 
-## The data
-
-A website that sells concert tickets. The manager asks: how much did Campus customers spend on Jazz concerts in Hanoi?
+The database belongs to a website that sells concert tickets:
 
 | Table | Rows | One row is |
 |---|---:|---|
 | `events` | 10,000 | a concert, with its `city` and `genre` |
 | `buyers` | 10,000 | a customer, with a `segment`: Campus, VIP or Regular |
-| `tickets` | 200,000 | a sold ticket, with `event_id`, `buyer_id` and `price`. Every event has exactly 20 tickets. |
+| `tickets` | 200,000 | a sold ticket, with `event_id`, `buyer_id` and `price`. Every event has 20 tickets. |
 
-## Words used in this lab
+Two things to know when you read a plan:
 
-- A **page** is a block of 8 KB. PostgreSQL reads one page at a time, so we measure the cost of a query in pages read.
-- **buffers** in the plans below: the number of pages actually read.
-- **est rows** and **actual rows**: how many rows PostgreSQL expected, and how many there really were.
+- A **page** is a block of 8 KB that PostgreSQL reads from disk. We measure cost in pages:
+  **buffers** in a plan is the number of pages read.
+- **est rows** is how many rows PostgreSQL expected, and **actual rows** is how many there really were.
 
-## How to work
-
-Replace each `None` with your answer and run the cell (click it, then press Shift+Enter).
-At the end of each part, run the `check(...)` cell. It marks your answers and gives hints.
+To answer a question, replace `None` with your answer and run the cell (Shift+Enter).
+The `check(...)` cell at the end of each part marks your answers.
 
 | Minutes | Part |
 |---|---|
-| 0–5 | Warm-up |
-| 5–17 | Part A: Index or full scan? |
-| 17–27 | Part B: Why the estimate is wrong |
-| 27–40 | Part C: What a wrong estimate costs |
-| 40–45 | Exit ticket |
-| 45–55 | Extra tasks, or time to catch up |
-| 55–60 | Wrap-up with the class |
+| 0–2 | Setup (runs while we introduce the lab) |
+| 2–8 | A. Index or full scan? |
+| 8–13 | B. Why the estimate is wrong |
+| 13–20 | C. What a wrong estimate costs |
+| 20–22 | Wrap-up |
 
-Run the next cell first. It should print "1 check passed".
+Keep one question in mind. To get the tickets of every Jazz concert in Hanoi, which is faster:
+(a) look up each concert's tickets in the index, or (b) read all 200,000 tickets once?
+
+Run the setup cell first. It should print "1 check passed".
 """)
 
 code("""
@@ -67,27 +65,9 @@ from labkit import *      # the helper functions used in this lab
 check("setup")
 """)
 
-md("""
-## Warm-up (5 minutes)
-
-The manager's question needs the tickets of every Jazz concert in Hanoi. The database could get them in two ways:
-
-- (a) For each Jazz concert in Hanoi, look up its tickets in the index on `tickets.event_id`.
-- (b) Read all 200,000 tickets once and keep the ones that belong to a Jazz concert in Hanoi.
-
-Which do you think is faster? Make a guess. There is no wrong answer, and we come back to it at the end.
-""")
-ans("""
-warmup_vote = None    # 'a' or 'b'
-save(warmup_vote=warmup_vote)
-""", """
-warmup_vote = "a"
-save(warmup_vote=warmup_vote)
-""")
-
 # ===================================================================== A
 md("""
-## Part A: Index or full scan? (12 minutes, lecture 16)
+## Part A: Index or full scan? (6 minutes, lecture 16)
 
 We look at one query, with different values of `n`:
 
@@ -128,31 +108,12 @@ sometimes a page it has already read (lecture 16, slide 24). A Seq Scan always r
 So the index stops paying off at about 1274 matching tickets, or about 64 events. That is what the
 lecture's formula gives (lecture 18, slide 6). PostgreSQL switches a little later, because its own
 cost model is more detailed than the lecture's.
-
-### A2. An index on two columns
-
-Suppose there is an index on `events(city, genre)`, sorted by `city` and then by `genre`,
-like a phone book sorted by family name and then by given name. The index matches a filter when all the
-entries the filter needs sit next to each other (lecture 16, slides 14 to 21).
-Write `True` for each filter the index matches, and `False` otherwise.
-
-1. `city = 'Hanoi' AND genre = 'Jazz'` (phone book: Nguyen, An)
-2. `city = 'Hanoi'` (everyone named Nguyen)
-3. `genre = 'Jazz'` (everyone with given name An)
-4. `city > 'H' AND genre = 'Jazz'` (family names after H, given name An)
-""")
-ans("""
-a2_matches = [None, None, None, None]    # for example [True, False, False, True]
-save(a2_matches=a2_matches)
-""", """
-a2_matches = [True, True, False, False]   # 3: no condition on city; 4: range on city, so the Jazz entries are scattered
-save(a2_matches=a2_matches)
 """)
 code('check("task_a")')
 
 # ===================================================================== B
 md("""
-## Part B: Why the estimate is wrong (10 minutes, lecture 17)
+## Part B: Why the estimate is wrong (5 minutes, lecture 17)
 
 Before it runs a query, PostgreSQL estimates how many rows each step returns. The lecture gives two rules for this:
 
@@ -200,10 +161,10 @@ code('check("task_b")')
 
 # ===================================================================== C
 md("""
-## Part C: What a wrong estimate costs (13 minutes, lecture 18)
+## Part C: What a wrong estimate costs (7 minutes, lecture 18)
 
 Now the manager's full query. To join `events` with `tickets`, PostgreSQL mainly chooses between two methods,
-the same two as in the warm-up:
+the same two as in the question at the top:
 
 - Nested loop: for each event, look up its tickets in the index. Cheap when there are few events.
 - Hash join: read all tickets once and match them with a hash table. Cheaper when there are many events.
@@ -260,36 +221,47 @@ so it made 4,000 lookups, about 12,000 pages. A wrong estimate early in a plan g
 """)
 code('check("task_c")')
 
-# ===================================================================== Exit
+# ===================================================================== Wrap-up
 md("""
-## Exit ticket (5 minutes, on your own)
+## Wrap-up (2 minutes, with the class)
 
-Joining the Jazz concerts in Hanoi with `tickets` costs about:
+Back to the question at the top. With few concerts, (a) is faster: look up each concert's tickets in the index.
+With many, (b) is faster: read all tickets once. PostgreSQL believed there were 20 and chose (a).
+There are 200, and the plan with hash joins reads about 12 times fewer pages.
 
-- Nested loop: 63 + 22 × x pages, where x is the number of concerts.
-  That is 63 pages to read `events`, then 22 pages per concert (2 index pages and 20 tickets).
-- Hash join: 63 + 1274 pages, whatever x is.
+The optimizer's search was fine, but its input was wrong. One assumption, that `city` and `genre` are independent,
+made it pick a slow plan, and better statistics fixed it.
 
-What is the largest whole number x for which the nested loop is still cheaper?
-""")
-ans("""
-exit_max_events = None
-save(exit_max_events=exit_max_events)
-""", """
-exit_max_events = (1274 - 1) // 22     # 63 + 22x < 63 + 1274, so x <= 57
-save(exit_max_events=exit_max_events)
-""")
-code("""
-check()    # checks the whole lab; extra tasks you left blank are skipped
+Please fill in the short feedback form on Canvas before you leave.
 """)
 
 # ===================================================================== Extras
 md("""
-## Extra tasks (if you finish early)
+## Extra tasks (after class, optional)
 
 Try any of these, in any order. Run `check("extras")` at the end.
 
-### Extra 1. The bitmap scan (lecture 16, slides 24 and 29)
+### Extra 1. An index on two columns
+
+Suppose there is an index on `events(city, genre)`, sorted by `city` and then by `genre`,
+like a phone book sorted by family name and then by given name. The index matches a filter when all the
+entries the filter needs sit next to each other (lecture 16, slides 14 to 21).
+Write `True` for each filter the index matches, and `False` otherwise.
+
+1. `city = 'Hanoi' AND genre = 'Jazz'` (phone book: Nguyen, An)
+2. `city = 'Hanoi'` (everyone named Nguyen)
+3. `genre = 'Jazz'` (everyone with given name An)
+4. `city > 'H' AND genre = 'Jazz'` (family names after H, given name An)
+""")
+ans("""
+index_matches = [None, None, None, None]    # for example [True, False, False, True]
+save(index_matches=index_matches)
+""", """
+index_matches = [True, True, False, False]   # 3: no condition on city; 4: range on city, so the Jazz entries are scattered
+save(index_matches=index_matches)
+""")
+md("""
+### Extra 2. The bitmap scan (lecture 16, slides 24 and 29)
 
 Part A switched the bitmap scan off. Run `n = 150` with PostgreSQL's normal settings.
 A bitmap scan first collects the locations of all matching tickets, sorts them by page,
@@ -299,7 +271,7 @@ code("""
 explain(RANGE.format(n=150))
 """)
 md("""
-### Extra 2. Histograms (lecture 17, slides 31 to 35)
+### Extra 3. Histograms (lecture 17, slides 31 to 35)
 
 For a number column like `price`, PostgreSQL keeps an equi-depth histogram: 11 boundaries that cut the prices
 into 10 buckets, each holding about 10% of the tickets, so 20,000 tickets. To estimate `price > 60`,
@@ -331,7 +303,7 @@ hist_postgres_estimate = hist_plan.scan["Plan Rows"]
 save(hist_postgres_estimate=hist_postgres_estimate)
 """)
 md("""
-### Extra 3. Be the optimizer (lecture 18, slides 12 to 19)
+### Extra 4. Be the optimizer (lecture 18, slides 12 to 19)
 
 Choose the plan for the full query yourself, the way a System R optimizer does: work out the cost of each option
 and keep the cheapest. Use this cost model, in pages:
@@ -389,7 +361,7 @@ opt_chosen_plan_actual_cost = opt_events_nl_actual + 51      # 4514
 save(opt_chosen_plan=opt_chosen_plan, opt_chosen_plan_actual_cost=opt_chosen_plan_actual_cost)
 """)
 md("""
-### Extra 4. A clustered index
+### Extra 5. A clustered index
 
 `CLUSTER` rewrites the table in `event_id` order, which makes the index clustered.
 Run `sql("CLUSTER tickets USING idx_tickets_event")`, then `sql("ANALYZE tickets")`, then `scan_sweep()` again.
@@ -399,30 +371,20 @@ This changes the data. Afterwards, put the data back with `reset_database()`.
 """)
 code('check("extras")')
 
-# ===================================================================== Wrap-up
+# ===================================================================== At home
 md("""
-## Wrap-up (with the class)
-
-Back to the warm-up. With few concerts, (a) is faster: look up each concert's tickets in the index.
-With many, (b) is faster: read all tickets once. PostgreSQL believed there were 20 and chose (a).
-There are 200, and the plan with hash joins reads about 12 times fewer pages.
-
-The optimizer's search was fine, but its input was wrong. One assumption, that `city` and `genre` are independent,
-made it pick a slow plan, and better statistics fixed it.
-
 ## At home (open-ended)
 
 Pick one, write down what you expect, then try it:
 
 1. Run `sql("DROP STATISTICS ev_stats")`, then repeat C2 with `(dependencies)` instead of `(mcv)`.
    Does the plan still change? Look at the est rows and explain why.
-2. Write a small program that lists all left-deep join orders for 3 or 4 tables and costs them with the model from Extra 3.
+2. Write a small program that lists all left-deep join orders for 3 or 4 tables and costs them with the model from Extra 4.
 3. Create an index on `tickets(event_id, price)` and run `scan_sweep()` again. Which new scan appears,
    and why does it read so few pages?
 
 Put the data back afterwards with `reset_database()`.
 
-Please fill in the short feedback form on Canvas before you leave.
 """)
 
 
@@ -431,7 +393,8 @@ COLAB_INTRO = """
 ## Running on Google Colab
 
 This copy of the lab runs on Google Colab, so you need no Docker and nothing on your laptop.
-The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data. It takes about 2 minutes.
+The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data. It takes about 2 minutes,
+so run it as soon as you open the notebook.
 
 - Run it again whenever Colab starts a new session (for example after "Runtime > Disconnect and delete runtime",
   or when you come back the next day). Your answers are kept as long as the session lives.
@@ -441,7 +404,7 @@ The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data
 COLAB_SETUP = """
 # Google Colab: install PostgreSQL 17 and the lab files (about 2 minutes, once per session)
 import os, subprocess, sys
-LAB_BRANCH = "main"
+LAB_BRANCH = "khai-guided"      # TODO before merging: back to "main"
 os.makedirs("/content/week6-lab", exist_ok=True)
 os.chdir("/content/week6-lab")
 setup = subprocess.Popen(

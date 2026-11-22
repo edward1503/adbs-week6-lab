@@ -164,10 +164,10 @@ def save(**answers):
     print("saved:", ", ".join(f"{k}={v!r}" for k, v in answers.items()))
 
 
-MARKERS = ("setup", "task_a", "task_b", "task_c", "exit", "extras")
+MARKERS = ("setup", "task_a", "task_b", "task_c", "extras")
 # test name (without "test_") -> task name shown to students
-LABELS = {"setup": "Setup", "a1": "A1", "a2": "A2", "b1": "B1", "c1": "C1", "c2": "C2",
-          "exit_ticket": "Exit ticket", "extra_histogram": "Extra 2", "extra_optimizer": "Extra 3"}
+LABELS = {"setup": "Setup", "a1": "A1", "b1": "B1", "c1": "C1", "c2": "C2",
+          "extra_index": "Extra 1", "extra_histogram": "Extra 3", "extra_optimizer": "Extra 4"}
 NOT_RUNNING = "Could not run the checks. Is the database running?\n" + (
     "Run the setup cell at the top of the notebook again, then run this cell again." if COLAB else
     "Start Docker Desktop, then run this in your terminal:  docker compose up -d\n"
