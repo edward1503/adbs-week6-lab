@@ -1,8 +1,8 @@
 # Week 6 Lab: Access Methods, Cost Estimation and Plan Search
 
 The quiz and lab for COMP5330 Week 6 (Friday 4 December 2026), based on
-[Edinburgh ADBS week 6](https://opencourse.inf.ed.ac.uk/adbs/week-6). After the lecture: a 10-minute quiz,
-then a 20-minute lab that we guide on screen. Students watch PostgreSQL choose a plan, find out why one of
+[Edinburgh ADBS week 6](https://opencourse.inf.ed.ac.uk/adbs/week-6). After the lecture: an 8-minute quiz,
+then a 22-minute lab that we guide on screen. Students watch PostgreSQL choose a plan, find out why one of
 its estimates is wrong, and fix it.
 
 This repository contains the answers, so keep it private. Students only get the student zip.
@@ -49,8 +49,8 @@ branch (replace `main` in the button's link) and set `LAB_BRANCH` in the first c
 
 | Minutes | What |
 |---|---|
-| 0–1 | Students open the Colab notebook and run its setup cell (it installs PostgreSQL while they do the quiz) |
-| 1–10 | Quiz on Kahoot: includes the two-column index rule and when a nested loop beats a hash join |
+| 0–8 | Quiz on Kahoot: includes the two-column index rule and when a nested loop beats a hash join |
+| 8–10 | Lab setup: students open the Colab notebook and run its setup cell while we introduce the lab |
 | 10–16 | Lab A. When does PostgreSQL stop using the index? |
 | 16–21 | Lab B. Why is the estimate wrong? 20 Jazz concerts in Hanoi expected, 200 actual |
 | 21–28 | Lab C. The full query: nested loops and 16,429 pages, then hash joins and 1,388 pages after `CREATE STATISTICS` |

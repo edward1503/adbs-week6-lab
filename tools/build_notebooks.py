@@ -48,10 +48,11 @@ The `check(...)` cell at the end of each part marks your answers.
 
 | Minutes | Part |
 |---|---|
-| 0–6 | A. Index or full scan? |
-| 6–11 | B. Why the estimate is wrong |
-| 11–18 | C. What a wrong estimate costs |
-| 18–20 | Wrap-up |
+| 0–2 | Setup (runs while we introduce the lab) |
+| 2–8 | A. Index or full scan? |
+| 8–13 | B. Why the estimate is wrong |
+| 13–20 | C. What a wrong estimate costs |
+| 20–22 | Wrap-up |
 
 Keep one question in mind. To get the tickets of every Jazz concert in Hanoi, which is faster:
 (a) look up each concert's tickets in the index, or (b) read all 200,000 tickets once?
@@ -393,7 +394,7 @@ COLAB_INTRO = """
 
 This copy of the lab runs on Google Colab, so you need no Docker and nothing on your laptop.
 The next cell installs PostgreSQL 17 on the Colab machine and loads the lab data. It takes about 2 minutes,
-so run it as soon as you open the notebook (in class: before the quiz).
+so run it as soon as you open the notebook.
 
 - Run it again whenever Colab starts a new session (for example after "Runtime > Disconnect and delete runtime",
   or when you come back the next day). Your answers are kept as long as the session lives.
